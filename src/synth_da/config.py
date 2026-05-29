@@ -50,7 +50,7 @@ class DatasetConfig(BaseModel):
     filters: FilterConfig = Field(default_factory=FilterConfig)
 
     @model_validator(mode="after")
-    def validate_column_mapping(self) -> "DatasetConfig":
+    def validate_column_mapping(self) -> DatasetConfig:
         if self.task == Task.TRANSLATION:
             if not self.source_column or not self.target_column:
                 raise ValueError("Translation configs require source_column and target_column")
@@ -72,7 +72,7 @@ class DatasetConfig(BaseModel):
         raise ValueError("No text column mapping configured")
 
 
-class Settings(BaseSettings):
+class Settings(BaseSettings):  # type: ignore[misc]
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     openai_base_url: str = "https://inference.alexandra.dk/v1"

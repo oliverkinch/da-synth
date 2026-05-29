@@ -39,10 +39,10 @@ DANISH_CITIES = [
 ]
 
 _TRANSLATE_PROMPT = """\
-Oversæt følgende persona-beskrivelse til naturligt dansk. \
+Oversæt følgende tekst til naturligt dansk. \
 Bevar tonen og personligheden. Svar kun med den oversatte tekst, intet andet.
 
-{persona}"""
+{text}"""
 
 
 async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
@@ -53,7 +53,7 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
 
     console.print("[blue]Downloading nvidia/Nemotron-Personas-USA…[/blue]")
     ds = load_dataset("nvidia/Nemotron-Personas-USA", split="train", token=settings.hf_token)
-    console.print(f"[green]✓ Loaded {len(ds)} personas[/green]")
+    console.print(f"[green]✓ Loaded {len(ds)} personas — columns: {ds.column_names}[/green]")
     rows: list[dict[str, Any]] = random.sample([dict(r) for r in ds], min(n, len(ds)))
 
     results: list[dict[str, Any]] = []
@@ -71,29 +71,40 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
 
         errors: list[str] = []
 
+        async def _translate_text(text: str) -> str:
+            return await client.generate(
+                [{"role": "user", "content": _TRANSLATE_PROMPT.format(text=text)}],
+                temperature=0.7,
+                max_tokens=512,
+            )
+
         async def _translate(row: dict[str, Any]) -> dict[str, Any] | None:
             async with semaphore:
                 try:
-                    persona_text = str(row.get("persona", ""))
-                    translated = await client.generate(
-                        [
-                            {
-                                "role": "user",
-                                "content": _TRANSLATE_PROMPT.format(persona=persona_text),
-                            }
-                        ],
-                        temperature=0.7,
-                        max_tokens=256,
+                    # The source dataset uses 'persona' for the narrative description;
+                    # fall back to 'description' if blank.
+                    raw_persona = str(row.get("persona") or row.get("description") or "")
+                    raw_hobbies = str(row.get("hobbies_and_interests") or "")
+
+                    # Translate both fields in parallel
+                    persona_da, hobbies_da = await asyncio.gather(
+                        _translate_text(raw_persona)
+                        if raw_persona
+                        else asyncio.sleep(0, result=""),
+                        _translate_text(raw_hobbies)
+                        if raw_hobbies
+                        else asyncio.sleep(0, result=""),
                     )
+
                     city, zipcode = random.choice(DANISH_CITIES)
                     return {
                         "uuid": row.get("uuid", ""),
-                        "persona": translated,
+                        "persona": persona_da,
                         "age": row.get("age"),
                         "sex": row.get("sex"),
                         "occupation": row.get("occupation"),
                         "education_level": row.get("education_level"),
-                        "hobbies_and_interests": row.get("hobbies_and_interests"),
+                        "hobbies_and_interests": hobbies_da,
                         "city": city,
                         "zipcode": zipcode,
                         "country": "Danmark",

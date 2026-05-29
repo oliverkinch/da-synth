@@ -29,12 +29,13 @@ class GenerationClient:
     ) -> str:
         response = await self._client.chat.completions.create(
             model=self.model,
-            messages=messages,  # type: ignore[arg-type]
+            messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
             **kwargs,
         )
-        content = response.choices[0].message.content
+        content: str | None = response.choices[0].message.content
         if content is None:
             raise ValueError("Model returned empty response")
         return content
