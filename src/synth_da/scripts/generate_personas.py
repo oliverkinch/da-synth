@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,8 @@ from synth_da.client import GenerationClient
 from synth_da.config import Settings
 
 ASSETS_DIR = Path(__file__).parent.parent.parent.parent / "assets"
+
+MIN_AGE = 15
 
 DANISH_CITIES = [
     ("København", "1000"),
@@ -37,45 +40,6 @@ DANISH_CITIES = [
     ("Slagelse", "4200"),
     ("Hillerød", "3400"),
 ]
-
-_SEX_DA: dict[str, str] = {
-    "Male": "Mand",
-    "Female": "Kvinde",
-    "Non-binary": "Ikke-binær",
-}
-
-_EDUCATION_DA: dict[str, str] = {
-    "less_than_9th": "Grundskole (under 9. klasse)",
-    "9th_to_12th": "Grundskole (9.–12. klasse)",
-    "high_school": "Gymnasial uddannelse",
-    "some_college": "Påbegyndt videregående uddannelse",
-    "associates": "Mellemlang videregående uddannelse",
-    "bachelors": "Bacheloruddannelse",
-    "graduate": "Kandidat- eller ph.d.-uddannelse",
-}
-
-_OCCUPATION_DA: dict[str, str] = {
-    "not_in_workforce": "Ikke i arbejdsstyrken",
-    "general_or_operations_manager": "Leder/driftschef",
-    "accountant_or_auditor": "Revisor/bogholder",
-    "engineer": "Ingeniør",
-    "air_traffic_controller_or_airfield_operations_specialist": "Flyveleder/lufthavnsspecialist",
-    "stocker_or_order_filler": "Lagermedarbejder",
-    "software_developer": "Softwareudvikler",
-    "registered_nurse": "Sygeplejerske",
-    "teacher": "Lærer",
-    "retail_salesperson": "Detailsælger",
-    "driver": "Chauffør",
-    "construction_worker": "Bygningsarbejder",
-    "chef_or_cook": "Kok",
-    "administrative_assistant": "Administrativ assistent",
-    "financial_analyst": "Finansanalytiker",
-    "physician_or_surgeon": "Læge/kirurg",
-    "lawyer": "Advokat",
-    "social_worker": "Socialrådgiver",
-    "marketing_manager": "Marketingchef",
-    "scientist_or_researcher": "Forsker/videnskabsperson",
-}
 
 _FEMALE_NAMES = [
     "Anne",
@@ -152,6 +116,30 @@ Eksempler på danske navne:
 
 Svar kun med fuldt navn (fornavn + efternavn), intet andet."""
 
+_GENERATE_PROMPT = """\
+Her er en engelsk personaprofil som inspiration:
+
+Alder: {age}
+Køn: {sex}
+Erhverv: {occupation}
+Uddannelse: {education_level}
+Personabeskrivelse: {persona}
+Hobbyer og interesser: {hobbies}
+
+Generer en komplet dansk personaprofil for {danish_name}, {age} år, bosiddende i \
+{city} ({zipcode}), Danmark. Brug den engelske profil som inspiration til personlighedstræk, \
+karakter og interesser, men skriv alt som frisk, naturlig dansk tekst med danske kulturelle \
+referencer og steder nær {city}.
+
+Svar kun med et JSON-objekt (ingen forklaring, ingen markdown-blokke):
+{{
+  "persona": "<levende beskrivelse af karakter og personlighed — begynd med {danish_name}>",
+  "sex": "<køn på dansk: Mand / Kvinde / Ikke-binær>",
+  "occupation": "<erhvervstitel på dansk>",
+  "education_level": "<uddannelsesniveau på dansk>",
+  "hobbies_and_interests": "<hobbyer og interesser tilpasset {city} og dansk kontekst>"
+}}"""
+
 
 def _name_examples(sex: str) -> str:
     first_pool = _FEMALE_NAMES if sex == "Female" else _MALE_NAMES
@@ -160,13 +148,13 @@ def _name_examples(sex: str) -> str:
     return "\n".join(f"{first} {last}" for first, last in zip(firsts, lasts, strict=False))
 
 
-_TRANSLATE_PROMPT = """\
-Oversæt følgende tekst til naturligt dansk. Bevar tonen og personligheden. \
-Erstat samtidig alle udenlandske stednavne (byer, kvarterer, stater, regioner) \
-med relevante danske steder i eller omkring {city} ({zipcode}), Danmark. \
-Svar kun med den oversatte og lokaliserede tekst, intet andet.
-
-{text}"""
+def _parse_json(content: str) -> dict[str, Any]:
+    content = content.strip()
+    # Strip markdown code fences if the model wraps the output
+    content = re.sub(r"^```(?:json)?\s*", "", content)
+    content = re.sub(r"\s*```$", "", content)
+    result: dict[str, Any] = json.loads(content)
+    return result
 
 
 async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
@@ -178,7 +166,11 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
     console.print("[blue]Downloading nvidia/Nemotron-Personas-USA…[/blue]")
     ds = load_dataset("nvidia/Nemotron-Personas-USA", split="train", token=settings.hf_token)
     console.print(f"[green]✓ Loaded {len(ds)} personas — columns: {ds.column_names}[/green]")
-    rows: list[dict[str, Any]] = random.sample([dict(r) for r in ds], min(n, len(ds)))
+
+    all_rows = [dict(r) for r in ds]
+    eligible = [r for r in all_rows if (r.get("age") or 0) >= MIN_AGE]
+    console.print(f"[green]✓ {len(eligible)} personas with age ≥ {MIN_AGE}[/green]")
+    rows = random.sample(eligible, min(n, len(eligible)))
 
     results: list[dict[str, Any]] = []
 
@@ -187,25 +179,13 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
         TextColumn("[bold blue]{task.description}"),
         MofNCompleteColumn(),
     ) as progress:
-        task_id = progress.add_task("Translating personas", total=len(rows))
+        task_id = progress.add_task("Generating personas", total=len(rows))
 
         import asyncio
 
         semaphore = asyncio.Semaphore(20)
 
         errors: list[str] = []
-
-        async def _translate_text(text: str, city: str, zipcode: str) -> str:
-            return await client.generate(
-                [
-                    {
-                        "role": "user",
-                        "content": _TRANSLATE_PROMPT.format(text=text, city=city, zipcode=zipcode),
-                    }
-                ],
-                temperature=0.7,
-                max_tokens=512,
-            )
 
         async def _generate_name(sex: str) -> str:
             return await client.generate(
@@ -219,50 +199,50 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
                 max_tokens=16,
             )
 
-        async def _translate(row: dict[str, Any]) -> dict[str, Any] | None:
+        async def _generate_fields(
+            row: dict[str, Any], danish_name: str, city: str, zipcode: str
+        ) -> dict[str, Any]:
+            content = await client.generate(
+                [
+                    {
+                        "role": "user",
+                        "content": _GENERATE_PROMPT.format(
+                            age=row.get("age", "ukendt"),
+                            sex=row.get("sex", ""),
+                            occupation=row.get("occupation", ""),
+                            education_level=row.get("education_level", ""),
+                            persona=str(row.get("persona") or row.get("description") or ""),
+                            hobbies=str(row.get("hobbies_and_interests") or ""),
+                            danish_name=danish_name,
+                            city=city,
+                            zipcode=zipcode,
+                        ),
+                    }
+                ],
+                temperature=0.8,
+                max_tokens=1024,
+            )
+            return _parse_json(content)
+
+        async def _generate(row: dict[str, Any]) -> dict[str, Any] | None:
             async with semaphore:
                 try:
-                    raw_persona = str(row.get("persona") or row.get("description") or "")
-                    raw_hobbies = str(row.get("hobbies_and_interests") or "")
+                    age = row.get("age")
                     raw_sex = str(row.get("sex") or "")
-
                     city, zipcode = random.choice(DANISH_CITIES)
 
-                    # Translate, localize, and generate name — all in parallel
-                    persona_da, hobbies_da, danish_name = await asyncio.gather(
-                        _translate_text(raw_persona, city, zipcode)
-                        if raw_persona
-                        else asyncio.sleep(0, result=""),
-                        _translate_text(raw_hobbies, city, zipcode)
-                        if raw_hobbies
-                        else asyncio.sleep(0, result=""),
-                        _generate_name(raw_sex),
-                    )
-
-                    # Replace the original name in the persona text with the Danish name
-                    original_name = str(row.get("name") or "").strip()
-                    if original_name and danish_name:
-                        persona_da = persona_da.replace(original_name, danish_name)
-                        hobbies_da = hobbies_da.replace(original_name, danish_name)
-                    # Also replace first name alone (handles "Firstname" references in text)
-                    if original_name and danish_name:
-                        orig_first = original_name.split()[0]
-                        da_first = danish_name.split()[0]
-                        persona_da = persona_da.replace(orig_first, da_first)
-                        hobbies_da = hobbies_da.replace(orig_first, da_first)
-
-                    raw_occ = str(row.get("occupation") or "")
-                    raw_edu = str(row.get("education_level") or "")
+                    danish_name = await _generate_name(raw_sex)
+                    fields = await _generate_fields(row, danish_name, city, zipcode)
 
                     return {
                         "uuid": row.get("uuid", ""),
                         "name": danish_name.strip(),
-                        "persona": persona_da,
-                        "age": row.get("age"),
-                        "sex": _SEX_DA.get(raw_sex, raw_sex),
-                        "occupation": _OCCUPATION_DA.get(raw_occ, raw_occ),
-                        "education_level": _EDUCATION_DA.get(raw_edu, raw_edu),
-                        "hobbies_and_interests": hobbies_da,
+                        "persona": fields.get("persona", ""),
+                        "age": age,
+                        "sex": fields.get("sex", ""),
+                        "occupation": fields.get("occupation", ""),
+                        "education_level": fields.get("education_level", ""),
+                        "hobbies_and_interests": fields.get("hobbies_and_interests", ""),
                         "city": city,
                         "zipcode": zipcode,
                         "country": "Danmark",
@@ -271,10 +251,10 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
                     errors.append(str(e))
                     return None
 
-        translated = await asyncio.gather(*[_translate(r) for r in rows])
-        for t in translated:
-            if t:
-                results.append(t)
+        generated = await asyncio.gather(*[_generate(r) for r in rows])
+        for g in generated:
+            if g:
+                results.append(g)
             progress.advance(task_id)
 
     if errors:
@@ -287,7 +267,6 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
     console.print(f"[green]✓ Generated {len(results)} Danish personas[/green]")
 
     if not dry_run:
-        # Save locally as fallback
         ASSETS_DIR.mkdir(parents=True, exist_ok=True)
         out = ASSETS_DIR / "personas.jsonl"
         with out.open("w") as f:
@@ -295,7 +274,6 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
                 f.write(json.dumps(p, ensure_ascii=False) + "\n")
         console.print(f"[green]✓ Saved locally to {out}[/green]")
 
-        # Push to HuggingFace Hub
         from datasets import Dataset
 
         hf_dataset = Dataset.from_list(results)
