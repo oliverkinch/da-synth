@@ -64,6 +64,8 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
 
         semaphore = asyncio.Semaphore(20)
 
+        errors: list[str] = []
+
         async def _translate(row: dict[str, Any]) -> dict[str, Any] | None:
             async with semaphore:
                 try:
@@ -91,7 +93,8 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
                         "zipcode": zipcode,
                         "country": "Danmark",
                     }
-                except Exception:
+                except Exception as e:
+                    errors.append(str(e))
                     return None
 
         translated = await asyncio.gather(*[_translate(r) for r in rows])
@@ -103,6 +106,13 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
     from rich.console import Console
 
     console = Console()
+    if errors:
+        console.print(f"[red]✗ {len(errors)} errors:[/red]")
+        for err in errors[:5]:
+            console.print(f"  [red]{err}[/red]")
+    if not results:
+        console.print("[red]No personas generated — aborting.[/red]")
+        return
     console.print(f"[green]✓ Generated {len(results)} Danish personas[/green]")
 
     if not dry_run:
