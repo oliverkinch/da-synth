@@ -55,25 +55,7 @@ Client: `openai` Python package.
 ## Seed Datasets
 
 ### General Danish text (dynaword subsets)
-- `danish-foundation-models/danish-dynaword` — exclude: `adl`, `grundtvig`, `enevaeldens_nyheder`, `relig`, `kb_historical_letters`, `gutenberg`, `jvj`, `memo`, `hvadvilduhelst`, `spont`, `synne`, `historical-danish-handwriting`, `cellar` (EU legal docs — covered by `oliverkinch/eur-lex`)
-
-Selected subsets for generation (subset name → styles):
-
-All subsets share the same schema: a single `text` column (plus `id`, `source`, `added`, `created`, `token_count`). All configs use `text_column: text`.
-
-| Subset | Styles | Content |
-|---|---|---|
-| `tidsskrift-dk` | grounded, summarization | Open-access academic articles |
-| `retsinformationdk` | grounded, summarization | Official Danish law and regulations |
-| `domsdatabasen` | grounded, summarization | Court judgments |
-| `ft` | grounded | Folketing (parliament) debates |
-| `nordjyllandnews` | grounded, summarization | TV2 Nord news articles |
-| `tv2r` | grounded, summarization | TV2 newswire (2010–2019) |
-| `health_hoofdstaden` | grounded | Capital Region healthcare guidelines |
-| `retspraksis` | grounded, summarization | Danish case law |
-| `skat` | grounded | Danish Tax Authority content |
-| `fm-udgivelser` | grounded, summarization | Ministry of Finance publications |
-| `ncc_books` | grounded, summarization | OCR'd Danish books |
+- `danish-foundation-models/danish-dynaword` — see [`docs/datasets/dynaword.md`](docs/datasets/dynaword.md) for subset selection, exclusion rationale, and style assignments.
 
 ### Wikipedia
 - `oliverkinch/danish_wikipedia` — 300k Danish Wikipedia articles (CC BY-SA 4.0, 2026-03-01 dump). Replaces the dynaword wikipedia subset.
