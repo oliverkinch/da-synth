@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -23,14 +23,14 @@ def _load_settings() -> Settings:
     return Settings()  # reads .env automatically
 
 
-@app.command()
+@app.command()  # type: ignore[misc]
 def generate(
     config: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--config", "-c", help="Path to a single dataset config YAML."),
     ] = None,
     style: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--style", "-s", help="Run all configs for this style (e.g. qa)."),
     ] = None,
     concurrency: Annotated[int, typer.Option(help="Number of concurrent LLM requests.")] = 20,
@@ -80,18 +80,21 @@ def generate(
             console.print("[yellow]Dry run — skipping Hub push.[/yellow]")
 
 
-@app.command()
+@app.command()  # type: ignore[misc]
 def generate_personas(
     n: Annotated[int, typer.Option(help="Number of personas to generate.")] = 5000,
     dry_run: Annotated[bool, typer.Option(help="Print personas but do not save.")] = False,
+    append: Annotated[
+        bool, typer.Option(help="Append to existing personas.jsonl instead of overwriting.")
+    ] = False,
 ) -> None:
     """Generate Danish personas from nvidia/Nemotron-Personas-USA and save to assets/personas.jsonl."""
     from synth_da.scripts.generate_personas import run
 
-    asyncio.run(run(n=n, settings=_load_settings(), dry_run=dry_run))
+    asyncio.run(run(n=n, settings=_load_settings(), dry_run=dry_run, append=append))
 
 
-@app.command()
+@app.command()  # type: ignore[misc]
 def translate_nemotron(
     n: Annotated[int, typer.Option(help="Number of samples to translate.")] = 10000,
     concurrency: Annotated[int, typer.Option(help="Concurrent LLM requests.")] = 20,

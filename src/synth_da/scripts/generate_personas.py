@@ -6,7 +6,7 @@ import json
 import random
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from datasets import load_dataset
 from rich.progress import MofNCompleteColumn, Progress, SpinnerColumn, TextColumn
@@ -15,8 +15,35 @@ from synth_da.client import GenerationClient
 from synth_da.config import Settings
 
 ASSETS_DIR = Path(__file__).parent.parent.parent.parent / "assets"
+_NAMES_DIR = ASSETS_DIR / "names"
 
 MIN_AGE = 15
+
+
+def _load_name_lists() -> tuple[list[str], list[str], list[str]]:
+    female = (_NAMES_DIR / "first_names_female.txt").read_text(encoding="utf-8").splitlines()
+    male = (_NAMES_DIR / "first_names_male.txt").read_text(encoding="utf-8").splitlines()
+    last = (_NAMES_DIR / "last_names.txt").read_text(encoding="utf-8").splitlines()
+    return (
+        [n for n in female if n.strip()],
+        [n for n in male if n.strip()],
+        [n for n in last if n.strip()],
+    )
+
+
+_FEMALE_FIRST, _MALE_FIRST, _LAST_NAMES = _load_name_lists()
+
+
+def _sample_name(sex: str) -> str:
+    if sex in ("Female", "Kvinde"):
+        first = random.choice(_FEMALE_FIRST)
+    elif sex in ("Male", "Mand"):
+        first = random.choice(_MALE_FIRST)
+    else:
+        first = random.choice(_FEMALE_FIRST + _MALE_FIRST)
+    last = random.choice(_LAST_NAMES)
+    return f"{first} {last}"
+
 
 DANISH_CITIES = [
     ("København", "1000"),
@@ -40,81 +67,6 @@ DANISH_CITIES = [
     ("Slagelse", "4200"),
     ("Hillerød", "3400"),
 ]
-
-_FEMALE_NAMES = [
-    "Anne",
-    "Mette",
-    "Kirsten",
-    "Hanne",
-    "Anna",
-    "Helle",
-    "Maria",
-    "Susanne",
-    "Lene",
-    "Marianne",
-    "Camilla",
-    "Lone",
-    "Louise",
-    "Charlotte",
-    "Pia",
-    "Tina",
-    "Emma",
-    "Ida",
-    "Gitte",
-    "Julie",
-]
-_MALE_NAMES = [
-    "Peter",
-    "Michael",
-    "Lars",
-    "Thomas",
-    "Jens",
-    "Henrik",
-    "Søren",
-    "Christian",
-    "Martin",
-    "Jan",
-    "Morten",
-    "Jesper",
-    "Anders",
-    "Mads",
-    "Niels",
-    "Rasmus",
-    "Mikkel",
-    "Kim",
-    "Per",
-    "Ole",
-]
-_LAST_NAMES = [
-    "Nielsen",
-    "Jensen",
-    "Hansen",
-    "Andersen",
-    "Pedersen",
-    "Christensen",
-    "Larsen",
-    "Sørensen",
-    "Rasmussen",
-    "Jørgensen",
-    "Petersen",
-    "Madsen",
-    "Kristensen",
-    "Olsen",
-    "Thomsen",
-    "Christiansen",
-    "Poulsen",
-    "Johansen",
-    "Møller",
-    "Mortensen",
-]
-
-_NAME_PROMPT = """\
-Opfind ét realistisk dansk navn til en person med køn: {sex}.
-
-Eksempler på danske navne:
-{examples}
-
-Svar kun med fuldt navn (fornavn + efternavn), intet andet."""
 
 _GENERATE_PROMPT = """\
 Her er en engelsk personaprofil som inspiration:
@@ -143,13 +95,6 @@ Svar kun med et JSON-objekt (ingen forklaring, ingen markdown-blokke):
 }}"""
 
 
-def _name_examples(sex: str) -> str:
-    first_pool = _FEMALE_NAMES if sex == "Female" else _MALE_NAMES
-    firsts = random.sample(first_pool, 5)
-    lasts = random.sample(_LAST_NAMES, 5)
-    return "\n".join(f"{first} {last}" for first, last in zip(firsts, lasts, strict=False))
-
-
 def _parse_json(content: str) -> dict[str, Any]:
     content = content.strip()
     # Strip markdown code fences if the model wraps the output
@@ -159,18 +104,34 @@ def _parse_json(content: str) -> dict[str, Any]:
     return result
 
 
-async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
+async def run(n: int, settings: Settings, dry_run: bool = False, append: bool = False) -> None:
     from rich.console import Console
 
     console = Console()
     client = GenerationClient(settings)
+
+    existing_uuids: set[str] = set()
+    existing_personas: list[dict[str, Any]] = []
+    if append:
+        out = ASSETS_DIR / "personas.jsonl"
+        if out.exists():
+            with out.open() as f:
+                for line in f:
+                    p = json.loads(line)
+                    existing_uuids.add(p["uuid"])
+                    existing_personas.append(p)
+            console.print(f"[blue]Loaded {len(existing_personas)} existing personas[/blue]")
 
     console.print("[blue]Downloading nvidia/Nemotron-Personas-USA…[/blue]")
     ds = load_dataset("nvidia/Nemotron-Personas-USA", split="train", token=settings.hf_token)
     console.print(f"[green]✓ Loaded {len(ds)} personas — columns: {ds.column_names}[/green]")
 
     all_rows = [dict(r) for r in ds]
-    eligible = [r for r in all_rows if (r.get("age") or 0) >= MIN_AGE]
+    eligible = [
+        r
+        for r in all_rows
+        if (r.get("age") or 0) >= MIN_AGE and r.get("uuid") not in existing_uuids
+    ]
     console.print(f"[green]✓ {len(eligible)} personas with age ≥ {MIN_AGE}[/green]")
     rows = random.sample(eligible, min(n, len(eligible)))
 
@@ -188,18 +149,6 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
         semaphore = asyncio.Semaphore(20)
 
         errors: list[str] = []
-
-        async def _generate_name(sex: str) -> str:
-            return await client.generate(
-                [
-                    {
-                        "role": "user",
-                        "content": _NAME_PROMPT.format(sex=sex, examples=_name_examples(sex)),
-                    }
-                ],
-                temperature=0.9,
-                max_tokens=16,
-            )
 
         async def _generate_fields(
             row: dict[str, Any], danish_name: str, city: str, zipcode: str
@@ -233,7 +182,7 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
                     raw_sex = str(row.get("sex") or "")
                     city, zipcode = random.choice(DANISH_CITIES)
 
-                    danish_name = await _generate_name(raw_sex)
+                    danish_name = _sample_name(raw_sex)
                     fields = await _generate_fields(row, danish_name, city, zipcode)
 
                     return {
@@ -271,14 +220,16 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
     if not dry_run:
         ASSETS_DIR.mkdir(parents=True, exist_ok=True)
         out = ASSETS_DIR / "personas.jsonl"
-        with out.open("w") as f:
+        open_mode: Literal["a", "w"] = "a" if append else "w"
+        with out.open(open_mode) as f:
             for p in results:
                 f.write(json.dumps(p, ensure_ascii=False) + "\n")
         console.print(f"[green]✓ Saved locally to {out}[/green]")
 
         from datasets import Dataset
 
-        hf_dataset = Dataset.from_list(results)
+        all_personas = existing_personas + results if append else results
+        hf_dataset = Dataset.from_list(all_personas)
         hf_dataset.push_to_hub(
             "oliverkinch/danish-personas",
             token=settings.hf_token,
