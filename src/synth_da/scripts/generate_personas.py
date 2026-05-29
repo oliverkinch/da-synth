@@ -131,6 +131,8 @@ Generer en komplet dansk personaprofil for {danish_name}, {age} år, bosiddende 
 karakter og interesser, men skriv alt som frisk, naturlig dansk tekst med danske kulturelle \
 referencer og steder nær {city}.
 
+Sørg for at erhverv og uddannelsesniveau er realistisk konsistente med hinanden.
+
 Svar kun med et JSON-objekt (ingen forklaring, ingen markdown-blokke):
 {{
   "persona": "<levende beskrivelse af karakter og personlighed — begynd med {danish_name}>",
