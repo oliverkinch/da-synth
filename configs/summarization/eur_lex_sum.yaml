@@ -1,0 +1,12 @@
+task: summarization
+seed_dataset: oliverkinch/eur-lex-sum
+seed_subset: da
+seed_split: train
+text_column: da_document
+n_samples: 1000
+persona_sampling: false
+system_prompt_rate: 0.4
+filters:
+  min_assistant_tokens: 50
+  max_repetition_ratio: 0.3
+  language_check: true

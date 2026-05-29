@@ -1,0 +1,196 @@
+# CONTEXT.md — Danish Synthetic Instruction Data Generator
+
+## Purpose
+
+A Python repository for generating high-quality synthetic Danish instruction-finetuning data (supervised finetuning / SFT). All output is in **messages format** (OpenAI chat style). Data is generated using the Alexandra Institute inference server via the OpenAI client.
+
+---
+
+## Glossary
+
+**Sample**
+A single training example. Always in messages format:
+```json
+{"messages": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
+```
+Optionally includes a system message as the first turn.
+
+**Style**
+A task category defining the type of instruction-following a sample trains. Each style has its own generation pipeline, prompt template, quality criteria, and seed dataset configuration(s). Active styles: `qa`, `summarization`, `translation`.
+
+**Style Wiki**
+A per-style markdown document (`docs/wiki/<style>.md`) following the Karpathy LLM-wiki pattern. Contains: definition, quality criteria, known pitfalls, and golden example samples. Used for human review and the `/dataset_review` skill — never injected into generation prompts.
+
+**Quality Criteria**
+A plain-text description of what makes a high-quality sample for a given style. Stored in the style's YAML config and injected into generation prompts. Distinct from golden examples (which live only in the wiki).
+
+**Seed Dataset**
+A HuggingFace dataset used as source material for generation. Each seed dataset has a YAML config that maps its columns to the fields expected by the style's prompt template.
+
+**Dataset Config**
+A YAML file under `configs/<style>/` that specifies: seed dataset, column mapping (via `text_template` or explicit `source_column`/`target_column`), sampling parameters, and persona/system prompt rates.
+
+**Persona**
+A synthetic Danish person profile used to diversify question style and framing. Derived from `nvidia/Nemotron-Personas-USA` by translating the persona text to Danish and replacing US geographic fields with Danish equivalents (city, postal code). Personas are used as a soft diversity signal in the *generator prompt* (not as system prompts in the output sample). Stored as a preprocessed `personas.jsonl` asset.
+
+**System Prompt Rate**
+The fraction of generated samples that include a system prompt as the first message. Set per dataset config. Reflects the real-world mix of deployments with and without system prompts.
+
+**Style Wiki Review / `/dataset_review`**
+A skill that loads the wiki for a given style and a sample of generated outputs, performs side-by-side comparison against the golden examples in the wiki, and flags samples that diverge from quality criteria.
+
+---
+
+## Inference Server
+
+```
+OPENAI_BASE_URL=https://inference.alexandra.dk/v1
+OPENAI_MODEL_NAME=qwen3.5-397b
+```
+
+Client: `openai` Python package.
+
+---
+
+## Seed Datasets
+
+### General Danish text (dynaword subsets)
+- `danish-foundation-models/danish-dynaword` — exclude: `adl`, `grundtvig`, `enevaeldens_nyheder`, `relig`, `kb_historical_letters`, `gutenberg`, `jvj`, `memo`, `hvadvilduhelst`, `spont`, `synne`, `historical-danish-handwriting`, `eur-lex`
+
+### Wikipedia
+- `oliverkinch/danish_wikipedia` — 300k Danish Wikipedia articles (CC BY-SA 4.0, 2026-03-01 dump). Replaces the dynaword wikipedia subset.
+
+### EU Legislation
+- `oliverkinch/eur-lex` — bilingual DA+EN EU legislative documents from CELLAR (CC BY 4.0). Used for translation and as general seed text. Replaces any separate "cellar" dataset.
+- `oliverkinch/eur-lex-sum` — 1,605 bilingual EU document + official summary pairs (CC BY 4.0). Primary seed for summarization. Fields: `celex_id`, `da_document`, `da_summary`, `en_document`, `en_summary`.
+
+### Academic
+- `oliverkinch/doab-da` — 4 open-access Danish book chapters (CC BY 4.0). Fields: `text`, `title`, `authors`, `doi`, `url`, `date`, `license`.
+- `oliverkinch/danish-university-portals` — 94 Danish university research publications, CC BY 4.0. Fields: `text`, `university`, `url`.
+
+### Statistics
+- `oliverkinch/danmarks-statistik` — Statistics Denmark data (public domain / Danish government open data).
+
+### Translation source (English high-quality)
+- `allenai/Dolci-Instruct-SFT` — 2.15M samples (ODC-BY 1.0, commercially usable). Already in messages format. Fields: `id`, `messages`, `source_dataset`, `domain`. Filter out `source_dataset` values containing "Precise IF" before translating (verifiable format constraints break on translation). The `domain` field (Math, Coding, Science, Safety, Other, Multilingual) allows targeted subset selection. The Aya subset (~100k, Apache 2.0) is multilingual — check for existing Danish samples before translating. Safety domain (WildGuardMix, WildJailbreak, CoCoNot) is particularly valuable as a source of Danish refusal training data.
+
+---
+
+## Dataset Config Schema
+
+```yaml
+task: qa | summarization | translation
+seed_dataset: <hf_dataset_id>
+seed_subset: <subset_name>
+seed_split: train
+# For single or merged columns:
+text_template: "## {title}\n\n{text}"   # Python .format() over column names
+# OR single column shorthand:
+text_column: text
+# For translation only:
+source_column: en_document
+target_column: da_document
+direction: en->da
+# Generation parameters:
+n_samples: 1000
+persona_sampling: true
+system_prompt_rate: 0.6
+```
+
+`text_template` and `text_column` are mutually exclusive. Translation configs use `source_column`/`target_column` instead.
+
+---
+
+## Output Format
+
+JSONL, one sample per line:
+```json
+{"messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
+```
+System message is omitted in samples where `system_prompt_rate` sampling excludes it.
+
+---
+
+## CLI
+
+Built with `typer` + `rich` (progress display). Main commands:
+
+```
+uv run danish-sft generate --config configs/qa/danish_wikipedia.yaml [--concurrency 20] [--judge]
+uv run danish-sft generate-personas
+uv run danish-sft translate-nemotron --n 10000
+```
+
+---
+
+## Output / HuggingFace Hub
+
+- **Dataset repo**: `oliverkinch/danish-sft`
+- **One subset per style**: `qa`, `summarization`, `translation`
+- **Behavior on repeated runs**: append (never overwrite). Each sample includes a `run_id` metadata field for traceability.
+- Each sample schema:
+  ```json
+  {
+    "messages": [...],
+    "run_id": "abc123",
+    "style": "qa",
+    "seed_dataset": "oliverkinch/danish_wikipedia",
+    "seed_config": "configs/qa/danish_wikipedia.yaml"
+  }
+  ```
+
+---
+
+## Generation Pipeline
+
+- Async generation using `asyncio` + the OpenAI async client
+- Concurrency controlled via `--concurrency` CLI flag (default: 20)
+- Progress displayed with `rich` (overall samples + current batch)
+- Each batch: sample seed rows → sample personas (if enabled) → render prompt → call LLM → apply filters → collect
+
+---
+
+## Quality Filtering
+
+Applied post-generation, before pushing to Hub. All thresholds are configurable per style in the dataset config.
+
+### Rule-based filters (always on)
+1. **Language detection** — drop samples where the assistant response is not Danish (`lingua` library preferred over `langdetect` for accuracy).
+2. **Length filter** — drop samples where the assistant response is below a minimum token count. Threshold varies by style (QA answers can be short; summaries should be substantial).
+3. **Repetition filter** — drop samples with high n-gram repetition in the assistant response.
+
+### LLM-as-judge (optional, `--judge` flag)
+- Scores each sample 1–5 using an anchored rubric defined per style.
+- Uses the same inference model (known limitation: self-serving bias, scores will cluster high). A different/stronger judge is preferable if available in future.
+- Score and short reasoning are stored as metadata fields (`judge_score`, `judge_reasoning`) on each sample.
+- Does **not** gate the push — all samples are pushed regardless of score. Score is used for post-hoc analysis and threshold setting.
+- The `/dataset_review` skill plots the score distribution to help determine a cut-off.
+
+### Known style-specific failure modes
+- **QA**: question leakage — the generated question contains information from the answer. Flag in QA wiki; consider a leakage-detection heuristic.
+- **General**: responses in English instead of Danish (caught by language filter).
+- **General**: truncated or degenerate responses (caught by length + repetition filters).
+
+---
+
+## Style Wiki Structure (`docs/wiki/<style>.md`)
+
+Each wiki page follows the Karpathy LLM-wiki pattern:
+- **Definition** — what this style trains
+- **Quality Criteria** — plain-text description of what makes a good sample (this text is also stored in the style YAML config for use in generation prompts)
+- **Known Pitfalls** — common failure modes observed in generated samples
+- **Golden Examples** — 2–5 hand-curated samples in messages format
+
+Wiki pages are maintained by humans and updated via the `/dataset_review` skill. They are **never injected into generation prompts** (to preserve diversity).
+
+---
+
+## Persona Generation
+
+Personas are preprocessed from `nvidia/Nemotron-Personas-USA` (CC BY 4.0):
+1. Sample a subset (~5–10k personas)
+2. Translate the `persona` text field to Danish using the inference server
+3. Replace `city`/`state`/`zipcode` with Danish equivalents (from a curated list of Danish cities and postal codes)
+4. Output: `assets/personas.jsonl`
+
+Personas are used as a **soft diversity signal** in generation prompts (option B): the generator is prompted to produce a question/task as if it came from a person with the given profile. Personas do not appear in the final training sample.

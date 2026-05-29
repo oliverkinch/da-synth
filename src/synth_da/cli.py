@@ -1,0 +1,107 @@
+"""CLI entrypoint for synth-da."""
+
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+from typing import Annotated, Optional
+
+import typer
+from rich.console import Console
+
+from synth_da.config import Settings, load_config
+
+app = typer.Typer(
+    name="synth-da",
+    help="Synthetic Danish instruction finetuning data generator.",
+    add_completion=False,
+)
+console = Console()
+
+
+def _load_settings() -> Settings:
+    return Settings()  # reads .env automatically
+
+
+@app.command()
+def generate(
+    config: Annotated[
+        Optional[Path],
+        typer.Option("--config", "-c", help="Path to a single dataset config YAML."),
+    ] = None,
+    style: Annotated[
+        Optional[str],
+        typer.Option("--style", "-s", help="Run all configs for this style (e.g. qa)."),
+    ] = None,
+    concurrency: Annotated[int, typer.Option(help="Number of concurrent LLM requests.")] = 20,
+    judge: Annotated[bool, typer.Option(help="Run LLM judge on each sample.")] = False,
+    dry_run: Annotated[bool, typer.Option(help="Generate but do not push to Hub.")] = False,
+) -> None:
+    """Generate synthetic Danish instruction data and push to HuggingFace Hub."""
+    if config is None and style is None:
+        console.print("[red]Specify --config or --style.[/red]")
+        raise typer.Exit(1)
+    if config is not None and style is not None:
+        console.print("[red]Specify either --config or --style, not both.[/red]")
+        raise typer.Exit(1)
+
+    configs_dir = Path(__file__).parent.parent.parent / "configs"
+
+    config_paths: list[Path] = []
+    if config:
+        config_paths = [config]
+    elif style:
+        style_dir = configs_dir / style
+        if not style_dir.exists():
+            console.print(f"[red]No configs directory found for style '{style}'.[/red]")
+            raise typer.Exit(1)
+        config_paths = sorted(style_dir.glob("*.yaml"))
+        if not config_paths:
+            console.print(f"[yellow]No YAML configs found in {style_dir}[/yellow]")
+            raise typer.Exit(0)
+
+    settings = _load_settings()
+
+    for cfg_path in config_paths:
+        console.rule(f"[bold]{cfg_path.stem}")
+        cfg = load_config(cfg_path)
+
+        from synth_da.pipeline import push_to_hub, run_pipeline
+
+        samples = asyncio.run(
+            run_pipeline(cfg, cfg_path, settings, concurrency=concurrency, judge=judge)
+        )
+        console.print(f"[green]✓ Generated {len(samples)} samples[/green]")
+
+        if not dry_run:
+            push_to_hub(samples, cfg.task.value, settings)
+            console.print(f"[green]✓ Pushed to Hub — subset: {cfg.task.value}[/green]")
+        else:
+            console.print("[yellow]Dry run — skipping Hub push.[/yellow]")
+
+
+@app.command()
+def generate_personas(
+    n: Annotated[int, typer.Option(help="Number of personas to generate.")] = 5000,
+    dry_run: Annotated[bool, typer.Option(help="Print personas but do not save.")] = False,
+) -> None:
+    """Generate Danish personas from nvidia/Nemotron-Personas-USA and save to assets/personas.jsonl."""
+    from synth_da.scripts.generate_personas import run
+
+    asyncio.run(run(n=n, settings=_load_settings(), dry_run=dry_run))
+
+
+@app.command()
+def translate_nemotron(
+    n: Annotated[int, typer.Option(help="Number of samples to translate.")] = 10000,
+    concurrency: Annotated[int, typer.Option(help="Concurrent LLM requests.")] = 20,
+    dry_run: Annotated[bool, typer.Option(help="Translate but do not push to Hub.")] = False,
+) -> None:
+    """Translate a subset of allenai/Dolci-Instruct-SFT to Danish and push to Hub."""
+    from synth_da.scripts.translate_dolci import run
+
+    asyncio.run(run(n=n, settings=_load_settings(), concurrency=concurrency, dry_run=dry_run))
+
+
+if __name__ == "__main__":
+    app()

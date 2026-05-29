@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "synth-da"
+version = "0.1.0"
+description = "Synthetic Danish instruction finetuning data generator"
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.40.0",
+    "datasets>=2.20.0",
+    "huggingface-hub>=0.24.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "lingua-language-detector>=2.0.0",
+    "pyyaml>=6.0.1",
+    "jinja2>=3.1.4",
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.14.0",
+    "mypy>=1.10.0",
+    "ruff>=0.5.0",
+    "pre-commit>=3.7.0",
+    "types-pyyaml>=6.0.12",
+]
+
+[project.scripts]
+synth-da = "synth_da.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/synth_da"]
+
+[tool.ruff]
+src = ["src"]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["synth_da"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
