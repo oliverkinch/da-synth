@@ -77,9 +77,94 @@ _OCCUPATION_DA: dict[str, str] = {
     "scientist_or_researcher": "Forsker/videnskabsperson",
 }
 
+_FEMALE_NAMES = [
+    "Anne",
+    "Mette",
+    "Kirsten",
+    "Hanne",
+    "Anna",
+    "Helle",
+    "Maria",
+    "Susanne",
+    "Lene",
+    "Marianne",
+    "Camilla",
+    "Lone",
+    "Louise",
+    "Charlotte",
+    "Pia",
+    "Tina",
+    "Emma",
+    "Ida",
+    "Gitte",
+    "Julie",
+]
+_MALE_NAMES = [
+    "Peter",
+    "Michael",
+    "Lars",
+    "Thomas",
+    "Jens",
+    "Henrik",
+    "Søren",
+    "Christian",
+    "Martin",
+    "Jan",
+    "Morten",
+    "Jesper",
+    "Anders",
+    "Mads",
+    "Niels",
+    "Rasmus",
+    "Mikkel",
+    "Kim",
+    "Per",
+    "Ole",
+]
+_LAST_NAMES = [
+    "Nielsen",
+    "Jensen",
+    "Hansen",
+    "Andersen",
+    "Pedersen",
+    "Christensen",
+    "Larsen",
+    "Sørensen",
+    "Rasmussen",
+    "Jørgensen",
+    "Petersen",
+    "Madsen",
+    "Kristensen",
+    "Olsen",
+    "Thomsen",
+    "Christiansen",
+    "Poulsen",
+    "Johansen",
+    "Møller",
+    "Mortensen",
+]
+
+_NAME_PROMPT = """\
+Opfind ét realistisk dansk navn til en person med køn: {sex}.
+
+Eksempler på danske navne:
+{examples}
+
+Svar kun med fuldt navn (fornavn + efternavn), intet andet."""
+
+
+def _name_examples(sex: str) -> str:
+    first_pool = _FEMALE_NAMES if sex == "Female" else _MALE_NAMES
+    firsts = random.sample(first_pool, 5)
+    lasts = random.sample(_LAST_NAMES, 5)
+    return "\n".join(f"{first} {last}" for first, last in zip(firsts, lasts, strict=False))
+
+
 _TRANSLATE_PROMPT = """\
-Oversæt følgende tekst til naturligt dansk. \
-Bevar tonen og personligheden. Svar kun med den oversatte tekst, intet andet.
+Oversæt følgende tekst til naturligt dansk. Bevar tonen og personligheden. \
+Erstat samtidig alle udenlandske stednavne (byer, kvarterer, stater, regioner) \
+med relevante danske steder i eller omkring {city} ({zipcode}), Danmark. \
+Svar kun med den oversatte og lokaliserede tekst, intet andet.
 
 {text}"""
 
@@ -110,38 +195,68 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
 
         errors: list[str] = []
 
-        async def _translate_text(text: str) -> str:
+        async def _translate_text(text: str, city: str, zipcode: str) -> str:
             return await client.generate(
-                [{"role": "user", "content": _TRANSLATE_PROMPT.format(text=text)}],
+                [
+                    {
+                        "role": "user",
+                        "content": _TRANSLATE_PROMPT.format(text=text, city=city, zipcode=zipcode),
+                    }
+                ],
                 temperature=0.7,
                 max_tokens=512,
+            )
+
+        async def _generate_name(sex: str) -> str:
+            return await client.generate(
+                [
+                    {
+                        "role": "user",
+                        "content": _NAME_PROMPT.format(sex=sex, examples=_name_examples(sex)),
+                    }
+                ],
+                temperature=0.9,
+                max_tokens=16,
             )
 
         async def _translate(row: dict[str, Any]) -> dict[str, Any] | None:
             async with semaphore:
                 try:
-                    # The source dataset uses 'persona' for the narrative description;
-                    # fall back to 'description' if blank.
                     raw_persona = str(row.get("persona") or row.get("description") or "")
                     raw_hobbies = str(row.get("hobbies_and_interests") or "")
+                    raw_sex = str(row.get("sex") or "")
 
-                    # Translate both fields in parallel
-                    persona_da, hobbies_da = await asyncio.gather(
-                        _translate_text(raw_persona)
+                    city, zipcode = random.choice(DANISH_CITIES)
+
+                    # Translate, localize, and generate name — all in parallel
+                    persona_da, hobbies_da, danish_name = await asyncio.gather(
+                        _translate_text(raw_persona, city, zipcode)
                         if raw_persona
                         else asyncio.sleep(0, result=""),
-                        _translate_text(raw_hobbies)
+                        _translate_text(raw_hobbies, city, zipcode)
                         if raw_hobbies
                         else asyncio.sleep(0, result=""),
+                        _generate_name(raw_sex),
                     )
 
-                    raw_sex = str(row.get("sex") or "")
+                    # Replace the original name in the persona text with the Danish name
+                    original_name = str(row.get("name") or "").strip()
+                    if original_name and danish_name:
+                        persona_da = persona_da.replace(original_name, danish_name)
+                        hobbies_da = hobbies_da.replace(original_name, danish_name)
+                    # Also replace first name alone (handles "Firstname" references in text)
+                    if original_name and danish_name:
+                        orig_first = original_name.split()[0]
+                        da_first = danish_name.split()[0]
+                        persona_da = persona_da.replace(orig_first, da_first)
+                        hobbies_da = hobbies_da.replace(orig_first, da_first)
+
                     raw_occ = str(row.get("occupation") or "")
                     raw_edu = str(row.get("education_level") or "")
 
-                    city, zipcode = random.choice(DANISH_CITIES)
                     return {
                         "uuid": row.get("uuid", ""),
+                        "name": danish_name.strip(),
                         "persona": persona_da,
                         "age": row.get("age"),
                         "sex": _SEX_DA.get(raw_sex, raw_sex),
