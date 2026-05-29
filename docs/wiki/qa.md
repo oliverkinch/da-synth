@@ -36,24 +36,24 @@ A high-quality QA sample satisfies all of the following:
 
 ### Example 1 — Wikipedia, open-domain factual QA
 
-**Source**: `oliverkinch/danish_wikipedia`, article "'Ndrangheta"
+**Source**: `oliverkinch/danish_wikipedia`, article "Folketing"
 
 ```json
 {
   "messages": [
     {
       "role": "user",
-      "content": "Hvad er 'ndrine, og hvilken rolle spiller de i 'Ndranghetaen?"
+      "content": "Hvor mange medlemmer har Folketinget, og hvordan fordeler mandaterne sig geografisk?"
     },
     {
       "role": "assistant",
-      "content": "'Ndrine (ental: 'ndrina) er de familieklaner, som 'Ndrangheta er struktureret omkring. Hver 'ndrina opererer relativt selvstændigt og kontrollerer typisk et bestemt geografisk område, men de koordinerer overordnet via et fælles råd. Den tætte familiebinding er en af hovedårsagerne til, at organisationen har vist sig meget svær at optrævle for myndighederne."
+      "content": "Folketinget har 179 medlemmer i alt. De 175 vælges i Danmark, mens Grønland og Færøerne hver bidrager med 2 mandater. Rigsfællesskabets to selvstyrende territorier er dermed begge direkte repræsenteret i parlamentet."
     }
   ]
 }
 ```
 
-**Why this is a good sample**: the question asks about a specific concept ('ndrine) that requires knowing the article — it cannot be answered from the question alone. The answer is precise, structured, and adds the explanatory consequence (how it affects law enforcement) without departing from what the source establishes.
+**Why this is a good sample**: the question targets a specific numerical fact that requires knowing the article — the 179/175/2/2 split is not deducible from the question itself. The answer is compact, addresses both parts of the question (total count + geographic distribution), and adds the logical consequence (territorial representation) without going beyond what the source establishes.
 
 ---
 
