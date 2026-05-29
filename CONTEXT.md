@@ -16,7 +16,7 @@ A single training example. Always in messages format:
 Optionally includes a system message as the first turn.
 
 **Style**
-A task category defining the type of instruction-following a sample trains. Each style has its own generation pipeline, prompt template, quality criteria, and seed dataset configuration(s). Active styles: `qa`, `summarization`, `translation`.
+A task category defining the type of instruction-following a sample trains. Each style has its own generation pipeline, prompt template, quality criteria, and seed dataset configuration(s). Active styles: `qa`, `summarization`, `translation`, `grounded`.
 
 **Style Wiki**
 A per-style markdown document (`docs/wiki/<style>.md`) following the Karpathy LLM-wiki pattern. Contains: definition, quality criteria, known pitfalls, and golden example samples. Used for human review and the `/dataset_review` skill — never injected into generation prompts.
@@ -55,7 +55,25 @@ Client: `openai` Python package.
 ## Seed Datasets
 
 ### General Danish text (dynaword subsets)
-- `danish-foundation-models/danish-dynaword` — exclude: `adl`, `grundtvig`, `enevaeldens_nyheder`, `relig`, `kb_historical_letters`, `gutenberg`, `jvj`, `memo`, `hvadvilduhelst`, `spont`, `synne`, `historical-danish-handwriting`, `eur-lex`
+- `danish-foundation-models/danish-dynaword` — exclude: `adl`, `grundtvig`, `enevaeldens_nyheder`, `relig`, `kb_historical_letters`, `gutenberg`, `jvj`, `memo`, `hvadvilduhelst`, `spont`, `synne`, `historical-danish-handwriting`, `cellar` (EU legal docs — covered by `oliverkinch/eur-lex`)
+
+Selected subsets for generation (subset name → styles):
+
+All subsets share the same schema: a single `text` column (plus `id`, `source`, `added`, `created`, `token_count`). All configs use `text_column: text`.
+
+| Subset | Styles | Content |
+|---|---|---|
+| `tidsskrift-dk` | grounded, summarization | Open-access academic articles |
+| `retsinformationdk` | grounded, summarization | Official Danish law and regulations |
+| `domsdatabasen` | grounded, summarization | Court judgments |
+| `ft` | grounded | Folketing (parliament) debates |
+| `nordjyllandnews` | grounded, summarization | TV2 Nord news articles |
+| `tv2r` | grounded, summarization | TV2 newswire (2010–2019) |
+| `health_hoofdstaden` | grounded | Capital Region healthcare guidelines |
+| `retspraksis` | grounded, summarization | Danish case law |
+| `skat` | grounded | Danish Tax Authority content |
+| `fm-udgivelser` | grounded, summarization | Ministry of Finance publications |
+| `ncc_books` | grounded, summarization | OCR'd Danish books |
 
 ### Wikipedia
 - `oliverkinch/danish_wikipedia` — 300k Danish Wikipedia articles (CC BY-SA 4.0, 2026-03-01 dump). Replaces the dynaword wikipedia subset.
@@ -168,6 +186,8 @@ Applied post-generation, before pushing to Hub. All thresholds are configurable 
 
 ### Known style-specific failure modes
 - **QA**: question leakage — the generated question contains information from the answer. Flag in QA wiki; consider a leakage-detection heuristic.
+- **Grounded**: disguised summarization — the generated instruction asks for "the main points" or "an overview", producing a sample that belongs in the `summarization` style instead. Caught by steering the generation prompt away from compression instructions.
+- **Grounded**: source text too short — a single sentence or very short passage produces trivial samples. Filter seed rows by minimum token count before generation.
 - **General**: responses in English instead of Danish (caught by language filter).
 - **General**: truncated or degenerate responses (caught by length + repetition filters).
 

@@ -2,12 +2,9 @@
 
 ## Definition
 
-The model is asked a question and produces a direct, accurate answer. QA covers two distinct sub-types:
+The model is asked a question and produces a direct, accurate answer. No source passage is provided in the user message — the model answers from its own knowledge. Seed text is used at generation time to produce naturalistic, knowledge-grounded questions, but does not appear in the final sample.
 
-- **Grounded QA**: a source passage is provided in the user message; the answer must be derived solely from that passage.
-- **Open-domain QA**: no passage is provided; the model answers from knowledge.
-
-Both sub-types appear in this dataset. The generation pipeline primarily produces grounded QA (seed text → generate question → generate answer), but open-domain questions are also generated using Wikipedia article content as the knowledge source without requiring the user to paste the article.
+For samples where the user pastes a source text and asks something about it, see the `grounded` style.
 
 ## Quality Criteria
 
