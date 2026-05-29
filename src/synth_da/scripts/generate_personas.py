@@ -38,6 +38,45 @@ DANISH_CITIES = [
     ("Hillerød", "3400"),
 ]
 
+_SEX_DA: dict[str, str] = {
+    "Male": "Mand",
+    "Female": "Kvinde",
+    "Non-binary": "Ikke-binær",
+}
+
+_EDUCATION_DA: dict[str, str] = {
+    "less_than_9th": "Grundskole (under 9. klasse)",
+    "9th_to_12th": "Grundskole (9.–12. klasse)",
+    "high_school": "Gymnasial uddannelse",
+    "some_college": "Påbegyndt videregående uddannelse",
+    "associates": "Mellemlang videregående uddannelse",
+    "bachelors": "Bacheloruddannelse",
+    "graduate": "Kandidat- eller ph.d.-uddannelse",
+}
+
+_OCCUPATION_DA: dict[str, str] = {
+    "not_in_workforce": "Ikke i arbejdsstyrken",
+    "general_or_operations_manager": "Leder/driftschef",
+    "accountant_or_auditor": "Revisor/bogholder",
+    "engineer": "Ingeniør",
+    "air_traffic_controller_or_airfield_operations_specialist": "Flyveleder/lufthavnsspecialist",
+    "stocker_or_order_filler": "Lagermedarbejder",
+    "software_developer": "Softwareudvikler",
+    "registered_nurse": "Sygeplejerske",
+    "teacher": "Lærer",
+    "retail_salesperson": "Detailsælger",
+    "driver": "Chauffør",
+    "construction_worker": "Bygningsarbejder",
+    "chef_or_cook": "Kok",
+    "administrative_assistant": "Administrativ assistent",
+    "financial_analyst": "Finansanalytiker",
+    "physician_or_surgeon": "Læge/kirurg",
+    "lawyer": "Advokat",
+    "social_worker": "Socialrådgiver",
+    "marketing_manager": "Marketingchef",
+    "scientist_or_researcher": "Forsker/videnskabsperson",
+}
+
 _TRANSLATE_PROMPT = """\
 Oversæt følgende tekst til naturligt dansk. \
 Bevar tonen og personligheden. Svar kun med den oversatte tekst, intet andet.
@@ -96,14 +135,18 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
                         else asyncio.sleep(0, result=""),
                     )
 
+                    raw_sex = str(row.get("sex") or "")
+                    raw_occ = str(row.get("occupation") or "")
+                    raw_edu = str(row.get("education_level") or "")
+
                     city, zipcode = random.choice(DANISH_CITIES)
                     return {
                         "uuid": row.get("uuid", ""),
                         "persona": persona_da,
                         "age": row.get("age"),
-                        "sex": row.get("sex"),
-                        "occupation": row.get("occupation"),
-                        "education_level": row.get("education_level"),
+                        "sex": _SEX_DA.get(raw_sex, raw_sex),
+                        "occupation": _OCCUPATION_DA.get(raw_occ, raw_occ),
+                        "education_level": _EDUCATION_DA.get(raw_edu, raw_edu),
                         "hobbies_and_interests": hobbies_da,
                         "city": city,
                         "zipcode": zipcode,
