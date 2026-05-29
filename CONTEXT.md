@@ -18,11 +18,11 @@ Optionally includes a system message as the first turn.
 **Style**
 A task category defining the type of instruction-following a sample trains. Each style has its own generation pipeline, prompt template, quality criteria, and seed dataset configuration(s). Active styles: `qa`, `summarization`, `translation`, `grounded`.
 
-**Style Wiki**
-A per-style markdown document (`docs/wiki/<style>.md`) following the Karpathy LLM-wiki pattern. Contains: definition, quality criteria, known pitfalls, and golden example samples. Used for human review and the `/dataset_review` skill — never injected into generation prompts.
+**Style Doc**
+A per-style markdown document (`docs/styles/<style>.md`). Contains: definition, quality criteria, known pitfalls, and golden example samples. Used for human review and the `/dataset_review` skill — never injected into generation prompts.
 
 **Quality Criteria**
-A plain-text description of what makes a high-quality sample for a given style. Stored in the style's YAML config and injected into generation prompts. Distinct from golden examples (which live only in the wiki).
+A plain-text description of what makes a high-quality sample for a given style. Stored in the style's YAML config and injected into generation prompts. Distinct from golden examples (which live only in the style doc).
 
 **Seed Dataset**
 A HuggingFace dataset used as source material for generation. Each seed dataset has a YAML config that maps its columns to the fields expected by the style's prompt template.
@@ -36,8 +36,8 @@ A synthetic Danish person profile used to diversify question style and framing. 
 **System Prompt Rate**
 The fraction of generated samples that include a system prompt as the first message. Set per dataset config. Reflects the real-world mix of deployments with and without system prompts.
 
-**Style Wiki Review / `/dataset_review`**
-A skill that loads the wiki for a given style and a sample of generated outputs, performs side-by-side comparison against the golden examples in the wiki, and flags samples that diverge from quality criteria.
+**Style Doc Review / `/dataset_review`**
+A skill that loads the style doc for a given style and a sample of generated outputs, performs side-by-side comparison against the golden examples, and flags samples that diverge from quality criteria.
 
 ---
 
@@ -167,7 +167,7 @@ Applied post-generation, before pushing to Hub. All thresholds are configurable 
 - The `/dataset_review` skill plots the score distribution to help determine a cut-off.
 
 ### Known style-specific failure modes
-- **QA**: question leakage — the generated question contains information from the answer. Flag in QA wiki; consider a leakage-detection heuristic.
+- **QA**: question leakage — the generated question contains information from the answer. Flag in the QA style doc; consider a leakage-detection heuristic.
 - **Grounded**: disguised summarization — the generated instruction asks for "the main points" or "an overview", producing a sample that belongs in the `summarization` style instead. Caught by steering the generation prompt away from compression instructions.
 - **Grounded**: source text too short — a single sentence or very short passage produces trivial samples. Filter seed rows by minimum token count before generation.
 - **General**: responses in English instead of Danish (caught by language filter).
@@ -175,15 +175,14 @@ Applied post-generation, before pushing to Hub. All thresholds are configurable 
 
 ---
 
-## Style Wiki Structure (`docs/wiki/<style>.md`)
+## Style Doc Structure (`docs/styles/<style>.md`)
 
-Each wiki page follows the Karpathy LLM-wiki pattern:
 - **Definition** — what this style trains
-- **Quality Criteria** — plain-text description of what makes a good sample (this text is also stored in the style YAML config for use in generation prompts)
+- **Quality Criteria** — plain-text description of what makes a good sample
 - **Known Pitfalls** — common failure modes observed in generated samples
 - **Golden Examples** — 2–5 hand-curated samples in messages format
 
-Wiki pages are maintained by humans and updated via the `/dataset_review` skill. They are **never injected into generation prompts** (to preserve diversity).
+Style docs are maintained by humans and updated via the `/dataset_review` skill. They are **never injected into generation prompts** (to preserve diversity).
 
 ---
 
