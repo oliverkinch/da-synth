@@ -8,13 +8,21 @@ from pathlib import Path
 from typing import Any
 
 PERSONAS_PATH = Path(__file__).parent.parent.parent / "assets" / "personas.jsonl"
+HF_PERSONAS_REPO = "oliverkinch/danish-personas"
 
 
 def load_personas(path: Path = PERSONAS_PATH) -> list[dict[str, Any]]:
-    if not path.exists():
+    if path.exists():
+        with path.open() as f:
+            return [json.loads(line) for line in f if line.strip()]
+    # Fall back to HuggingFace Hub
+    try:
+        from datasets import load_dataset
+
+        ds = load_dataset(HF_PERSONAS_REPO, split="train")
+        return [dict(row) for row in ds]
+    except Exception:
         return []
-    with path.open() as f:
-        return [json.loads(line) for line in f if line.strip()]
 
 
 _PERSONAS: list[dict[str, Any]] = []
@@ -44,7 +52,7 @@ def persona_to_prompt(persona: dict[str, Any]) -> str:
         parts.append(f"fra {city}")
     if interests := persona.get("hobbies_and_interests"):
         parts.append(f"med interesse for {interests.lower()}")
-    desc = persona.get("persona", "")
+    desc = str(persona.get("persona", ""))
     if parts:
         return f"[Persona: {', '.join(parts)}] {desc}".strip()
     return desc

@@ -16,11 +16,26 @@ from synth_da.config import Settings
 ASSETS_DIR = Path(__file__).parent.parent.parent.parent / "assets"
 
 DANISH_CITIES = [
-    ("København", "1000"), ("Aarhus", "8000"), ("Odense", "5000"), ("Aalborg", "9000"),
-    ("Esbjerg", "6700"), ("Randers", "8900"), ("Kolding", "6000"), ("Horsens", "8700"),
-    ("Vejle", "7100"), ("Roskilde", "4000"), ("Herning", "7400"), ("Silkeborg", "8600"),
-    ("Næstved", "4700"), ("Fredericia", "7000"), ("Viborg", "8800"), ("Køge", "4600"),
-    ("Holstebro", "7500"), ("Taastrup", "2630"), ("Slagelse", "4200"), ("Hillerød", "3400"),
+    ("København", "1000"),
+    ("Aarhus", "8000"),
+    ("Odense", "5000"),
+    ("Aalborg", "9000"),
+    ("Esbjerg", "6700"),
+    ("Randers", "8900"),
+    ("Kolding", "6000"),
+    ("Horsens", "8700"),
+    ("Vejle", "7100"),
+    ("Roskilde", "4000"),
+    ("Herning", "7400"),
+    ("Silkeborg", "8600"),
+    ("Næstved", "4700"),
+    ("Fredericia", "7000"),
+    ("Viborg", "8800"),
+    ("Køge", "4600"),
+    ("Holstebro", "7500"),
+    ("Taastrup", "2630"),
+    ("Slagelse", "4200"),
+    ("Hillerød", "3400"),
 ]
 
 _TRANSLATE_PROMPT = """\
@@ -34,7 +49,7 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
     client = GenerationClient(settings)
 
     ds = load_dataset("nvidia/Nemotron-Personas-USA", split="train", token=settings.hf_token)
-    rows: list[dict[str, Any]] = random.sample(list(ds), min(n, len(ds)))  # type: ignore[arg-type]
+    rows: list[dict[str, Any]] = random.sample([dict(r) for r in ds], min(n, len(ds)))
 
     results: list[dict[str, Any]] = []
 
@@ -54,7 +69,12 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
                 try:
                     persona_text = str(row.get("persona", ""))
                     translated = await client.generate(
-                        [{"role": "user", "content": _TRANSLATE_PROMPT.format(persona=persona_text)}],
+                        [
+                            {
+                                "role": "user",
+                                "content": _TRANSLATE_PROMPT.format(persona=persona_text),
+                            }
+                        ],
                         temperature=0.7,
                         max_tokens=256,
                     )
@@ -81,13 +101,25 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
             progress.advance(task_id)
 
     from rich.console import Console
+
     console = Console()
     console.print(f"[green]✓ Generated {len(results)} Danish personas[/green]")
 
     if not dry_run:
+        # Save locally as fallback
         ASSETS_DIR.mkdir(parents=True, exist_ok=True)
         out = ASSETS_DIR / "personas.jsonl"
         with out.open("w") as f:
             for p in results:
                 f.write(json.dumps(p, ensure_ascii=False) + "\n")
-        console.print(f"[green]✓ Saved to {out}[/green]")
+        console.print(f"[green]✓ Saved locally to {out}[/green]")
+
+        # Push to HuggingFace Hub
+        from datasets import Dataset
+
+        hf_dataset = Dataset.from_list(results)
+        hf_dataset.push_to_hub(
+            "oliverkinch/danish-personas",
+            token=settings.hf_token,
+        )
+        console.print("[green]✓ Pushed to oliverkinch/danish-personas on HuggingFace Hub[/green]")
