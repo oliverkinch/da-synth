@@ -46,9 +46,14 @@ Bevar tonen og personligheden. Svar kun med den oversatte tekst, intet andet.
 
 
 async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
+    from rich.console import Console
+
+    console = Console()
     client = GenerationClient(settings)
 
+    console.print("[blue]Downloading nvidia/Nemotron-Personas-USA…[/blue]")
     ds = load_dataset("nvidia/Nemotron-Personas-USA", split="train", token=settings.hf_token)
+    console.print(f"[green]✓ Loaded {len(ds)} personas[/green]")
     rows: list[dict[str, Any]] = random.sample([dict(r) for r in ds], min(n, len(ds)))
 
     results: list[dict[str, Any]] = []
@@ -103,9 +108,6 @@ async def run(n: int, settings: Settings, dry_run: bool = False) -> None:
                 results.append(t)
             progress.advance(task_id)
 
-    from rich.console import Console
-
-    console = Console()
     if errors:
         console.print(f"[red]✗ {len(errors)} errors:[/red]")
         for err in errors[:5]:
