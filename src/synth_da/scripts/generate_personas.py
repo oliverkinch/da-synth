@@ -20,29 +20,24 @@ _NAMES_DIR = ASSETS_DIR / "names"
 MIN_AGE = 15
 
 
-def _load_name_lists() -> tuple[list[str], list[str], list[str]]:
-    female = (_NAMES_DIR / "first_names_female.txt").read_text(encoding="utf-8").splitlines()
-    male = (_NAMES_DIR / "first_names_male.txt").read_text(encoding="utf-8").splitlines()
-    last = (_NAMES_DIR / "last_names.txt").read_text(encoding="utf-8").splitlines()
-    return (
-        [n for n in female if n.strip()],
-        [n for n in male if n.strip()],
-        [n for n in last if n.strip()],
-    )
+def _read_names(filename: str) -> list[str]:
+    return [n for n in (_NAMES_DIR / filename).read_text(encoding="utf-8").splitlines() if n]
 
 
-_FEMALE_FIRST, _MALE_FIRST, _LAST_NAMES = _load_name_lists()
+_FEMALE_FIRST = _read_names("first_names_female.txt")
+_MALE_FIRST = _read_names("first_names_male.txt")
+_LAST_NAMES = _read_names("last_names.txt")
+_ALL_FIRST = _FEMALE_FIRST + _MALE_FIRST
 
 
 def _sample_name(sex: str) -> str:
-    if sex in ("Female", "Kvinde"):
+    if sex == "Female":
         first = random.choice(_FEMALE_FIRST)
-    elif sex in ("Male", "Mand"):
+    elif sex == "Male":
         first = random.choice(_MALE_FIRST)
     else:
-        first = random.choice(_FEMALE_FIRST + _MALE_FIRST)
-    last = random.choice(_LAST_NAMES)
-    return f"{first} {last}"
+        first = random.choice(_ALL_FIRST)
+    return f"{first} {random.choice(_LAST_NAMES)}"
 
 
 DANISH_CITIES = [
