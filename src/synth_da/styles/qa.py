@@ -69,8 +69,8 @@ class QAGenerator(BaseGenerator):
         if not isinstance(value, dict):
             return None
 
-        question = value.get("question", "").strip()
-        answer = value.get("answer", "").strip()
+        question = (value.get("question") or "").strip()
+        answer = (value.get("answer") or "").strip()
         if not question or not answer:
             return None
 
