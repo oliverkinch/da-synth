@@ -2,7 +2,7 @@
 
 ## Definition
 
-The model is asked a question and produces a direct, accurate answer. No source passage is provided in the user message — the model answers from its own knowledge. Seed text is used at generation time to produce naturalistic, knowledge-grounded questions, but does not appear in the final sample.
+The model is asked a question and produces a direct, accurate answer from its own knowledge. No source passage is provided in the user message. Seed text is used at generation time to identify a general-knowledge fact and produce a naturalistic question, but neither the source text nor the fact itself appears in the final sample.
 
 For samples where the user pastes a source text and asks something about it, see the `grounded` style.
 
@@ -11,18 +11,18 @@ For samples where the user pastes a source text and asks something about it, see
 A high-quality QA sample satisfies all of the following:
 
 - **Answer correctness**: the answer is factually correct and directly addresses the question asked.
-- **Groundedness** (for grounded QA): the answer contains no information beyond what is in the provided passage. The model does not supplement with external knowledge.
-- **No question leakage**: the question does not contain or paraphrase the answer. "Hvad hedder den asteroide der blev opdaget af LINEAR-projektet den 11. september 1999 og midlertidigt navngivet 1999 RQ36?" is a leaking question — the answer is embedded in the question itself.
+- **Genuine open question**: the question is one the user is asking because they do not know the answer — not a confirmation or a rhetorical check.
+- **No question leakage**: the question does not contain or paraphrase the answer. The answer must not be deducible from reading the question alone.
 - **Question naturalness**: the question reads as something a person would actually ask, not as a cloze or fill-in-the-blank rewritten as a question.
-- **Answer concision**: the answer gives what was asked for and stops. It does not reproduce large chunks of the source passage, pad with caveats, or answer a different question.
+- **Answer concision**: the answer gives what was asked for and stops. It does not pad with caveats or restate the question.
 - **Danish fluency**: both question and answer are in natural, idiomatic Danish.
 
 ## Known Pitfalls
 
-- **Question leakage**: the most common failure mode. The generated question contains the answer as a substring or close paraphrase. Check that the question cannot be answered by reading the question alone.
-- **Trivial questions**: "Hvad handler teksten om?" — answerable without reading the passage, trains nothing useful.
+- **Confirmation questions**: the most common failure mode with casual phrasing. "Var det ikke Linda Blair, der spillede i Eksorcisten?" — the user is not asking because they don't know; they're asking for confirmation. The model answers "Ja" and restates the question. This trains confirmation behaviour, not knowledge recall. The question must be genuinely open.
+- **Question leakage**: the generated question contains the answer as a substring or close paraphrase. Check that the question cannot be answered by reading the question alone.
+- **Trivial questions**: "Hvad er X?" where X is the topic of the seed text — too easy, trains nothing useful.
 - **Answer padding**: the model restates the question before answering ("Det er et godt spørgsmål. Svaret på dit spørgsmål om...").
-- **Out-of-passage answers** (grounded QA): the model draws on world knowledge to supplement a thin passage instead of staying within the source.
 - **Multi-question conflation**: the user asks one thing but the assistant answers a slightly different question.
 
 ---
@@ -50,54 +50,31 @@ A high-quality QA sample satisfies all of the following:
 }
 ```
 
-**Why this is a good sample**: the question targets a specific numerical fact that requires knowing the article — the 179/175/2/2 split is not deducible from the question itself. The answer is compact, addresses both parts of the question (total count + geographic distribution), and adds the logical consequence (territorial representation) without going beyond what the source establishes.
+**Why this is a good sample**: the question is genuinely open — the user does not supply the answer. It targets a specific numerical fact (179/175/2/2) that cannot be deduced from the question itself. The answer is compact and addresses both parts without padding.
 
 ---
 
-### Example 2 — EUR-Lex, grounded QA with source passage
+### Example 2 — Wikipedia, casual phrasing with context-setting preamble
 
-**Source**: `oliverkinch/eur-lex`, Lissabontraktaten (CELEX 12007L/TXT)
+**Source**: `oliverkinch/danish_wikipedia`, article "Northeast Corridor"
 
 ```json
 {
   "messages": [
     {
       "role": "system",
-      "content": "Du er en hjælpsom assistent. Svar altid på dansk, og basér dine svar udelukkende på den tekst, brugeren præsenterer."
+      "content": "Du er en kyndig assistent der svarer præcist og kortfattet på dansk."
     },
     {
       "role": "user",
-      "content": "Læs venligst følgende uddrag fra Lissabontraktaten og besvar spørgsmålet nedenfor.\n\n---\n\nArtikel 1\n[...]\nUnionen afløser og efterfølger Det Europæiske Fællesskab.\n\nArtikel 9 F\nRådet vælger sin formand med kvalificeret flertal for en periode på to et halvt år, der kan fornyes én gang. I tilfælde af inhabilitet eller grov forseelse kan Det Europæiske Råd afsætte formanden ved kvalificeret flertal.\n[tekst forkortet]\n\n---\n\nHvordan vælges formanden for Det Europæiske Råd ifølge traktaten, og hvad er embedsperiodens varighed?"
+      "content": "Hej, jeg sad lige og kiggede på nogle gamle kort over amerikanske jernbaner og undrede mig: hvilken strækning er egentlig den mest travle i USA, hvis man ser på antal passagerer?"
     },
     {
       "role": "assistant",
-      "content": "Ifølge traktaten vælges formanden for Det Europæiske Råd med kvalificeret flertal blandt rådets medlemmer. Embedsperioden er på to et halvt år og kan fornyes én gang, dvs. en formand kan maksimalt sidde i fem år. Rådet kan afsætte formanden ved kvalificeret flertal, hvis der er tale om inhabilitet eller grov forseelse."
+      "content": "Det er Northeast Corridor, der løber langs østkysten fra Washington D.C. til Boston, som er den travleste jernbanestrækning i USA målt på passagertal."
     }
   ]
 }
 ```
 
-**Why this is a good sample**: the answer is fully grounded in the provided passage — no external knowledge is used. It correctly handles a two-part question (election procedure + term length) and adds the logical corollary (maximum total term) without departing from the source.
-
----
-
-### Example 3 — Academic text (dynaword/tidsskrift), grounded QA, multi-sentence answer
-
-**Source**: `danish-foundation-models/danish-dynaword`, subset `tidsskrift`, sports psychology article
-
-```json
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Baseret på nedenstående uddrag: hvilke genopladningsstrategier fandt forskerne mest effektive for U20-ishockeyspillerne?\n\n---\n\nResultaterne viste, at spillerne generelt oplevede et moderat stressniveau under lejren, men at individuelle forskelle var markante. De primære stressorer var konkurrenceangst, uklare rolleforventninger fra trænerens side samt social isolation fra familie og venner. Genopladningsstrategier der viste sig mest effektive var aktiv restitution, sociale aktiviteter med holdkammerater og strukturerede rutiner for søvn."
-    },
-    {
-      "role": "assistant",
-      "content": "Ifølge studiet var de mest effektive genopladningsstrategier aktiv restitution, sociale aktiviteter med holdkammerater samt strukturerede søvnrutiner."
-    }
-  ]
-}
-```
-
-**Why this is a good sample**: the answer is a direct, single-sentence response to a specific question — no padding, no re-statement of the question, no information from outside the passage. The brevity is appropriate because the question is narrow and the passage gives a clear, enumerable answer.
+**Why this is a good sample**: the context-setting preamble ("jeg sad og kiggede på kort") is fine — it's realistic and does not contain the answer. The question itself is open: the user does not know which corridor it is. Compare with the bad version: "var det ikke Northeast Corridor, der er den travleste?" — that is a confirmation question and should not be generated.

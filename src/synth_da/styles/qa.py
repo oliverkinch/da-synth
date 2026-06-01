@@ -53,9 +53,13 @@ Kontekst (kun til reference — må ikke citeres i svaret):
 ---
 {persona_note}
 Regler:
-- Spørgsmålet må ikke indeholde svaret eller en omformulering af det
-- Spørgsmålet skal lyde naturligt og uformelt — som noget en rigtig person ville skrive \
-i en chat (hverdagslig sprogbrug, blandet register er fint)
+- Spørgsmålet skal være ægte åbent — brugeren kender ikke svaret og spørger fordi de vil vide det
+- Undgå bekræftelsesspørgsmål: IKKE "var det ikke X?", "er det ikke rigtigt at X?", \
+"kan du bekræfte at X?" — det er ikke et vidensøgende spørgsmål
+- Spørgsmålet må ikke indeholde svaret eller en tydelig omformulering af det
+- Spørgsmålet må gerne have en kort kontekst-sætning som optakt \
+("Jeg sad og tænkte på X — hvad er Y?"), men selve spørgsmålet skal være åbent
+- Spørgsmålet skal lyde naturligt og uformelt, som noget en rigtig person ville skrive i en chat
 - Svaret skal være korrekt, kortfattet og på dansk
 - Svaret må ikke referere til "teksten" eller "konteksten"
 
