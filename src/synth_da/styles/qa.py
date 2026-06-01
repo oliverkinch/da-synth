@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from synth_da.client import GenerationClient
 from synth_da.config import DatasetConfig
 from synth_da.filters import passes_filters
 from synth_da.styles.base import BaseGenerator
+
+_BIRTH_QUESTION_RE = re.compile(r"\bfødt\b", re.IGNORECASE)
 
 _PROMPT = """\
 Find op til 3 gode, indbyrdes forskellige fakta fra teksten der egner sig til et vidensbaseret datasæt.
@@ -40,6 +43,8 @@ class QAGenerator(BaseGenerator):
 
         records = []
         for question, answer in pairs:
+            if _BIRTH_QUESTION_RE.search(question):
+                continue
             if not passes_filters(text=answer, cfg=self.config.filters):
                 continue
             records.append(
