@@ -66,7 +66,9 @@ Svar: {answer}
 
 Underkend eksemplet hvis:
 - Spørgsmålet kun kan besvares med adgang til en specifik kildetekst
-- Spørgsmålet indeholder eller parafraserer svaret
+- Spørgsmålet indeholder eller parafraserer svaret, fx ved at opstille svarmulighederne ("er det X eller Y?")
+- Spørgsmålet er bekræftelsessøgende eller ledende ("var det ikke...", "vidste du at...")
+- Spørgsmålet bruger AI-formulering som "hvad er et centralt faktum om...", "hvad er det mest kendte faktum om...", "hvad er det bemærkelsesværdige ved..."
 
 Returner KUN JSON: {{"pass": true}} eller {{"pass": false}}"""
 
