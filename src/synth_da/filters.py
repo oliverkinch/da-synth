@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import json
 import warnings
 from collections import Counter
@@ -19,7 +20,6 @@ if TYPE_CHECKING:
 _EXAMPLES_PATH = (
     Path(__file__).parent.parent.parent / "assets" / "qa_judge_rejection_examples.jsonl"
 )
-_examples_cache: list[dict[str, Any]] | None = None
 
 _detector = LanguageDetectorBuilder.from_languages(
     Language.DANISH, Language.ENGLISH, Language.SWEDISH, Language.BOKMAL, Language.NYNORSK
@@ -56,18 +56,18 @@ def passes_filters(text: str, cfg: FilterConfig) -> bool:
     return not cfg.language_check or is_danish(text=text)
 
 
-def _load_examples() -> list[dict[str, Any]]:
-    global _examples_cache
-    if _examples_cache is None:
-        _examples_cache = []
-        if _EXAMPLES_PATH.exists():
-            with _EXAMPLES_PATH.open(encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        with contextlib.suppress(json.JSONDecodeError):
-                            _examples_cache.append(json.loads(line))
-    return _examples_cache
+@functools.lru_cache(maxsize=1)
+def _load_examples() -> tuple[dict[str, Any], ...]:
+    if not _EXAMPLES_PATH.exists():
+        return ()
+    examples = []
+    with _EXAMPLES_PATH.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                with contextlib.suppress(json.JSONDecodeError):
+                    examples.append(json.loads(line))
+    return tuple(examples)
 
 
 def _build_judge_prompt(pairs: list[tuple[str, str]]) -> str:

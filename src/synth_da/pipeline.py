@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from datasets import Dataset, load_dataset
+from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn
+from rich.table import Table
 
 from synth_da.client import GenerationClient
 from synth_da.config import DatasetConfig, Settings, Task
@@ -32,6 +34,9 @@ def _make_generator(config: DatasetConfig, client: GenerationClient) -> BaseGene
     if config.task == Task.TRANSLATION:
         return TranslationGenerator(config=config, client=client)
     raise ValueError(f"Unknown task: {config.task}")
+
+
+_console = Console()
 
 
 async def run_pipeline(
@@ -59,11 +64,7 @@ async def run_pipeline(
     random.shuffle(rows)
 
     if not rows:
-        from rich.console import Console
-
-        Console().print(
-            "[yellow]No unseen rows after deduplication - nothing to generate.[/yellow]"
-        )
+        _console.print("[yellow]No unseen rows after deduplication - nothing to generate.[/yellow]")
         return []
 
     samples: list[dict[str, Any]] = []
@@ -104,9 +105,7 @@ async def run_pipeline(
                     key = type(r).__name__
                     if key not in _logged_errors:
                         _logged_errors.add(key)
-                        from rich.console import Console
-
-                        Console().print(f"[red]Error ({key}): {r}[/red]")
+                        _console.print(f"[red]Error ({key}): {r}[/red]")
                     continue
                 if isinstance(r, BaseException):
                     raise r
@@ -122,35 +121,19 @@ async def run_pipeline(
             else:
                 consecutive_error_batches += 1
                 if consecutive_error_batches >= 5:
-                    from rich.console import Console
-
-                    Console().print("[red]5 consecutive all-error batches - aborting.[/red]")
+                    _console.print("[red]5 consecutive all-error batches - aborting.[/red]")
                     break
 
     if errors:
-        from rich.console import Console
+        _console.print(f"[yellow]⚠ {errors} generation errors (skipped)[/yellow]")
 
-        Console().print(f"[yellow]⚠ {errors} generation errors (skipped)[/yellow]")
-
-    if generator.stats:
-        from rich.console import Console
-        from rich.table import Table
-
-        s = generator.stats
-        extracted = s["extracted"]
-        accepted = extracted - s["skipped_regex"] - s["skipped_filter"] - s["skipped_judge"]
+    if rows := generator.stats_rows():
         table = Table(title="Filter funnel", show_header=False, box=None, padding=(0, 2))
         table.add_column(style="bold")
         table.add_column(justify="right")
-        table.add_row("Extracted", str(extracted))
-        if s["skipped_regex"]:
-            table.add_row("  – regex", str(s["skipped_regex"]))
-        if s["skipped_filter"]:
-            table.add_row("  – filters", str(s["skipped_filter"]))
-        if s["skipped_judge"]:
-            table.add_row("  – judge", str(s["skipped_judge"]))
-        table.add_row("Accepted", str(accepted))
-        Console().print(table)
+        for label, value in rows:
+            table.add_row(label, str(value))
+        _console.print(table)
 
     return samples[: config.n_samples]
 

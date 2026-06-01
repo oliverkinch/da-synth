@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from synth_da.client import GenerationClient
-from synth_da.config import DatasetConfig
 from synth_da.filters import passes_filters
 from synth_da.styles.base import BaseGenerator
 
@@ -30,9 +28,6 @@ Translate the following Danish text to English.
 
 
 class TranslationGenerator(BaseGenerator):
-    def __init__(self, config: DatasetConfig, client: GenerationClient) -> None:
-        super().__init__(config=config, client=client)
-
     async def generate_many(
         self,
         row: dict[str, Any],

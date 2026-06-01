@@ -6,8 +6,6 @@ import json
 import re
 from typing import Any
 
-from synth_da.client import GenerationClient
-from synth_da.config import DatasetConfig
 from synth_da.filters import passes_filters, qa_judge
 from synth_da.styles.base import BaseGenerator
 
@@ -27,9 +25,6 @@ Returner som JSON-liste eller null.
 
 
 class QAGenerator(BaseGenerator):
-    def __init__(self, config: DatasetConfig, client: GenerationClient) -> None:
-        super().__init__(config=config, client=client)
-
     async def generate_many(
         self,
         row: dict[str, Any],
@@ -58,6 +53,7 @@ class QAGenerator(BaseGenerator):
         records = []
         for (q, a), verdict in zip(candidates, verdicts, strict=True):
             if verdict:
+                self.stats["accepted"] += 1
                 records.append(
                     self._make_record(
                         fields={"question": q, "answer": a}, seed_config=seed_config, row=row
@@ -66,6 +62,20 @@ class QAGenerator(BaseGenerator):
             else:
                 self.stats["skipped_judge"] += 1
         return records
+
+    def stats_rows(self) -> list[tuple[str, int]]:
+        s = self.stats
+        if not s:
+            return []
+        rows: list[tuple[str, int]] = [("Extracted", s["extracted"])]
+        if s["skipped_regex"]:
+            rows.append(("  – regex", s["skipped_regex"]))
+        if s["skipped_filter"]:
+            rows.append(("  – filters", s["skipped_filter"]))
+        if s["skipped_judge"]:
+            rows.append(("  – judge", s["skipped_judge"]))
+        rows.append(("Accepted", s["accepted"]))
+        return rows
 
     async def _generate_qa(self, text: str) -> list[tuple[str, str]]:
         prompt = self._fmt(_PROMPT, text=text[:4000])

@@ -26,6 +26,10 @@ class BaseGenerator(ABC):
         """Generate zero or more records from one seed row."""
         ...
 
+    def stats_rows(self) -> list[tuple[str, int]]:
+        """Return labelled rows for the post-run stats display. Override in subclasses."""
+        return []
+
     @staticmethod
     def _fmt(template: str, **kwargs: str) -> str:
         """Format a prompt template, escaping braces in all substituted values."""
@@ -46,7 +50,7 @@ class BaseGenerator(ABC):
             "seed_config": seed_config,
         }
         if self.config.source_id_column:
-            source_id = str(row.get(self.config.source_id_column, "")) or None
-            if source_id is not None:
-                record["source_id"] = source_id
+            source_id = row.get(self.config.source_id_column)
+            if source_id:
+                record["source_id"] = str(source_id)
         return record
