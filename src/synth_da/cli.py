@@ -118,5 +118,19 @@ def generate(
             console.print("[yellow]Dry run — skipping Hub push.[/yellow]")
 
 
+@app.command()
+def generate_personas(
+    n: Annotated[int, typer.Option(help="Number of personas to generate.")] = 5000,
+    dry_run: Annotated[bool, typer.Option(help="Print personas but do not save.")] = False,
+    append: Annotated[
+        bool, typer.Option(help="Append to existing personas.jsonl instead of overwriting.")
+    ] = False,
+) -> None:
+    """Generate Danish personas from nvidia/Nemotron-Personas-USA and save to assets/personas.jsonl."""
+    from synth_da.scripts.generate_personas import run
+
+    asyncio.run(run(n=n, settings=_load_settings(), dry_run=dry_run, append=append))
+
+
 if __name__ == "__main__":
     app()
