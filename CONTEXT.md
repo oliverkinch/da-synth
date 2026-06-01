@@ -8,14 +8,26 @@
 
 ## Purpose
 
-A Python repository for generating high-quality synthetic Danish instruction-finetuning data (supervised finetuning / SFT). All output is in **messages format** (OpenAI chat style). Data is generated using the Alexandra Institute inference server via the OpenAI client.
+A Python repository for generating high-quality synthetic Danish instruction-finetuning data (supervised finetuning / SFT). Generation is a two-stage pipeline: first produce a **Knowledge Dataset** of raw Q+A pairs, then convert those pairs into **chat-formatted SFT samples**. Data is generated using the Alexandra Institute inference server via the OpenAI client.
 
 ---
 
 ## Glossary
 
+**Knowledge Pair**
+A raw extracted question-and-answer unit, produced in the first pipeline stage. Not yet chat-formatted. Schema:
+```json
+{"question": "...", "answer": "...", "run_id": "...", "source_id": "...", "seed_dataset": "...", "seed_config": "..."}
+```
+
+**Knowledge Dataset**
+The collection of Knowledge Pairs for a given style, stored as JSONL. Intermediate output — not the final training artifact. For the `qa` style this means (question, answer) pairs extracted from seed documents; the source text is not retained.
+
+**Chat Conversion**
+The second pipeline stage. Takes Knowledge Pairs and wraps them in a chat format (system prompt, optional persona-influenced user phrasing), producing SFT Samples. Personas and system-prompt sampling happen at this stage, not during extraction.
+
 **Sample**
-A single training example. Always in messages format:
+A single training example. The final output of the Chat Conversion stage, always in messages format:
 ```json
 {"messages": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
 ```
@@ -40,13 +52,13 @@ A HuggingFace dataset used as source material for generation. Each seed dataset 
 A YAML file under `configs/<style>/` that specifies: seed dataset, column mapping (via `text_template` or explicit `source_column`/`target_column`), sampling parameters, and persona/system prompt rates.
 
 **Persona**
-A synthetic Danish person profile used to diversify question style and framing. Sourced from `oliverkinch/danish-personas` (HuggingFace Hub, 5 000 personas). Derived from `nvidia/Nemotron-Personas-USA` by translating the persona text to Danish and replacing US geographic fields with Danish equivalents. Fields: `uuid`, `name`, `persona`, `age`, `sex`, `occupation`, `education_level`, `hobbies_and_interests`, `city`, `zipcode`, `country`. Personas are used as a soft diversity signal in the *generator prompt* (not as system prompts in the output sample).
+A synthetic Danish person profile used to diversify question phrasing and register. Sourced from `oliverkinch/danish-personas` (HuggingFace Hub, 5 000 personas). Derived from `nvidia/Nemotron-Personas-USA` by translating the persona text to Danish and replacing US geographic fields with Danish equivalents. Fields: `uuid`, `name`, `persona`, `age`, `sex`, `occupation`, `education_level`, `hobbies_and_interests`, `city`, `zipcode`, `country`. Personas are a **soft diversity signal** applied during Chat Conversion to vary how the user question is phrased — they do not appear in the final sample, and only `age` + free-text `persona` description are passed (not occupation or city, which tend to be quoted verbatim).
 
 **System Prompt Rate**
 The fraction of generated samples that include a system prompt as the first message. Set per dataset config. Reflects the real-world mix of deployments with and without system prompts.
 
 **Style Doc Review / `/dataset_review`**
-A skill that loads the style doc for a given style and a sample of generated outputs, performs side-by-side comparison against the golden examples, and flags samples that diverge from quality criteria.
+A skill that loads the style doc for a given style and a sample of generated outputs, performs side-by-side comparison against the golden examples, and flags samples that diverge from quality criteria. Review is performed against the final chat-formatted Samples, not raw Knowledge Pairs.
 
 ---
 
@@ -112,9 +124,14 @@ system_prompt_rate: 0.6
 
 ## Output Format
 
-JSONL, one sample per line:
+**Stage 1 — Knowledge Dataset** (JSONL, one Knowledge Pair per line):
 ```json
-{"messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
+{"question": "Hvornår fik kvinder stemmeret i Danmark?", "answer": "Ved grundlovsændringen i 1915.", "run_id": "abc123", "source_id": "https://da.wikipedia.org/?curid=...", "seed_dataset": "oliverkinch/danish_wikipedia", "seed_config": "configs/qa/danish_wikipedia.yaml"}
+```
+
+**Stage 2 — SFT Dataset** (JSONL, one Sample per line):
+```json
+{"messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}], "run_id": "abc123", "style": "qa", "seed_dataset": "oliverkinch/danish_wikipedia", "seed_config": "configs/qa/danish_wikipedia.yaml", "source_id": "https://da.wikipedia.org/?curid=..."}
 ```
 System message is omitted in samples where `system_prompt_rate` sampling excludes it.
 
@@ -125,7 +142,7 @@ System message is omitted in samples where `system_prompt_rate` sampling exclude
 Built with `typer` + `rich` (progress display). Main commands:
 
 ```
-uv run danish-sft generate --config configs/qa/danish_wikipedia.yaml [--concurrency 20] [--judge]
+uv run danish-sft generate --config configs/qa/danish_wikipedia.yaml [--concurrency 20]
 uv run danish-sft generate-personas
 uv run danish-sft translate-nemotron --n 10000
 ```
@@ -134,30 +151,28 @@ uv run danish-sft translate-nemotron --n 10000
 
 ## Output / HuggingFace Hub
 
-- **Dataset repo**: `oliverkinch/danish-sft`
-- **One subset per style**: `qa`, `summarization`, `translation`
-- **Behavior on repeated runs**: append (never overwrite). Each sample includes a `run_id` metadata field for traceability.
-- Each sample schema:
-  ```json
-  {
-    "messages": [...],
-    "run_id": "abc123",
-    "style": "qa",
-    "seed_dataset": "oliverkinch/danish_wikipedia",
-    "seed_config": "configs/qa/danish_wikipedia.yaml",
-    "source_id": "https://da.wikipedia.org/?curid=12345"
-  }
-  ```
-  `source_id` is optional — only present when `source_id_column` is set in the dataset config.
+- **Knowledge dataset repo**: `oliverkinch/danish-knowledge-qa` — one subset per seed dataset config
+- **SFT dataset repo**: `oliverkinch/danish-sft` — one subset per style (`qa`, `summarization`, `translation`)
+- **Behavior on repeated runs**: append (never overwrite). Each record includes a `run_id` metadata field for traceability.
+- Source-level deduplication: on each run the output file is scanned for existing `source_id` values; rows already present in the output are skipped before generation begins.
+- `source_id` is optional — only present when `source_id_column` is set in the dataset config.
 
 ---
 
 ## Generation Pipeline
 
+Two stages, run separately:
+
+**Stage 1 — Knowledge Extraction**
 - Async generation using `asyncio` + the OpenAI async client
 - Concurrency controlled via `--concurrency` CLI flag (default: 20)
-- Progress displayed with `rich` (overall samples + current batch)
-- Each batch: sample seed rows → sample personas (if enabled) → render prompt → call LLM → apply filters → collect
+- Progress displayed with `rich`
+- Each batch: sample seed rows → render seed text → call LLM (extract fact + generate Q+A in one call) → apply rule-based filters + binary judge → write Knowledge Pair to output JSONL
+
+**Stage 2 — Chat Conversion** *(planned)*
+- Reads Knowledge Dataset JSONL
+- For each pair: sample persona (if enabled) → sample system prompt (at `system_prompt_rate`) → call LLM to produce a naturalistic chat-formatted question from the persona's perspective → write SFT Sample to output JSONL
+- Personas and system prompts are injected here, not during extraction
 
 ---
 
@@ -170,15 +185,14 @@ Applied post-generation, before pushing to Hub. All thresholds are configurable 
 2. **Length filter** — drop samples where the assistant response is below a minimum token count. Threshold varies by style (QA answers can be short; summaries should be substantial).
 3. **Repetition filter** — drop samples with high n-gram repetition in the assistant response.
 
-### LLM-as-judge (optional, `--judge` flag)
-- Scores each sample 1–5 using an anchored rubric defined per style.
-- Uses the same inference model (known limitation: self-serving bias, scores will cluster high). A different/stronger judge is preferable if available in future.
-- Score and short reasoning are stored as metadata fields (`judge_score`, `judge_reasoning`) on each sample.
-- Does **not** gate the push — all samples are pushed regardless of score. Score is used for post-hoc analysis and threshold setting.
-- The `/dataset_review` skill plots the score distribution to help determine a cut-off.
+### LLM-as-judge (always on for QA)
+- Binary pass/fail — rejects samples that do not clear the quality bar, rather than scoring them.
+- For `qa`: rejects if (1) the question can only be answered with access to the source text, (2) the question contains or paraphrases the answer, (3) the question is confirmation-seeking or leading, (4) the question uses AI phrasing ("hvad er det mest kendte faktum om…").
+- Uses the same inference model at temperature 0.
 
 ### Known style-specific failure modes
-- **QA**: question leakage — the generated question contains information from the answer. Flag in the QA style doc; consider a leakage-detection heuristic.
+- **QA**: question leakage — the generated question contains information from the answer. Caught by the binary judge.
+- **QA**: context dependency — the question only makes sense with the source text present. Caught by the binary judge.
 - **Grounded**: disguised summarization — the generated instruction asks for "the main points" or "an overview", producing a sample that belongs in the `summarization` style instead. Caught by steering the generation prompt away from compression instructions.
 - **Grounded**: source text too short — a single sentence or very short passage produces trivial samples. Filter seed rows by minimum token count before generation.
 - **General**: responses in English instead of Danish (caught by language filter).
@@ -205,4 +219,4 @@ Personas are preprocessed from `nvidia/Nemotron-Personas-USA` (CC BY 4.0):
 3. Replace `city`/`state`/`zipcode` with Danish equivalents (from a curated list of Danish cities and postal codes)
 4. Output: `assets/personas.jsonl`
 
-Personas are used as a **soft diversity signal** in generation prompts (option B): the generator is prompted to produce a question/task as if it came from a person with the given profile. Personas do not appear in the final training sample.
+Personas are applied during Chat Conversion (stage 2): the converter is prompted to phrase the user question as if it came from a person with the given profile. Personas do not appear in the final training sample.
