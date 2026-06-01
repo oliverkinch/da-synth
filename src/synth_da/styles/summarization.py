@@ -37,15 +37,17 @@ Et højkvalitets opsummeringseksempel:
 
 class SummarizationGenerator(BaseGenerator):
     def __init__(self, config: DatasetConfig, client: GenerationClient) -> None:
-        super().__init__(config, client)
+        super().__init__(config=config, client=client)
 
     async def build_prompt(self, row: dict[str, Any], persona_text: str | None) -> list[Message]:
-        text = self.config.render_text(row)
+        text = self.config.render_text(row=row)
         request_style = random.choice(_REQUEST_STYLES)
 
         persona_note = ""
         if persona_text:
-            persona_note = f"\n\nFormulér opsummeringen til en person med denne profil:\n{persona_text}"
+            persona_note = (
+                f"\n\nFormulér opsummeringen til en person med denne profil:\n{persona_text}"
+            )
 
         generation_prompt = f"""\
 Generér ét højkvalitets opsummeringseksempel på dansk.
@@ -68,10 +70,10 @@ ASSISTENT: <opsummering>"""
             {"role": "user", "content": generation_prompt},
         ]
 
-        raw = await self.client.generate(generation_messages, temperature=0.8)
-        user_msg, assistant_msg = _parse_summarization(raw)
+        raw = await self.client.generate(messages=generation_messages, temperature=0.8)
+        user_msg, assistant_msg = _parse_summarization(raw=raw)
 
-        system_msgs = self._maybe_system_prompt(random.choice(_SYSTEM_PROMPTS))
+        system_msgs = self._maybe_system_prompt(content=random.choice(_SYSTEM_PROMPTS))
         return system_msgs + [
             {"role": "user", "content": user_msg},
             {"role": "assistant", "content": assistant_msg},

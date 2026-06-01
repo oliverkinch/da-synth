@@ -41,7 +41,7 @@ A high-quality translation (DA→EN):
 
 class TranslationGenerator(BaseGenerator):
     def __init__(self, config: DatasetConfig, client: GenerationClient) -> None:
-        super().__init__(config, client)
+        super().__init__(config=config, client=client)
         assert config.direction is not None
         assert config.source_column is not None
         assert config.target_column is not None
@@ -60,7 +60,9 @@ class TranslationGenerator(BaseGenerator):
             request = random.choice(_DA_TO_EN_REQUESTS)
             criteria = _QUALITY_CRITERIA_DA_EN
             user_content = f"{request}\n\n---\n\n{source_text}"
-            system_content = "You are a precise translator. Translate only the text — add no commentary."
+            system_content = (
+                "You are a precise translator. Translate only the text — add no commentary."
+            )
 
         # For translation we use the gold target directly when available,
         # otherwise generate via the model. Here we generate to produce
@@ -69,7 +71,7 @@ class TranslationGenerator(BaseGenerator):
 
         if target_text:
             # We have a gold translation — use it directly
-            system_msgs = self._maybe_system_prompt(system_content)
+            system_msgs = self._maybe_system_prompt(content=system_content)
             return system_msgs + [
                 {"role": "user", "content": user_content},
                 {"role": "assistant", "content": target_text},
@@ -80,9 +82,9 @@ class TranslationGenerator(BaseGenerator):
             {"role": "system", "content": system_content + f"\n\n{criteria}"},
             {"role": "user", "content": user_content},
         ]
-        translation = await self.client.generate(gen_prompt, temperature=0.3)
+        translation = await self.client.generate(messages=gen_prompt, temperature=0.3)
 
-        system_msgs = self._maybe_system_prompt(system_content)
+        system_msgs = self._maybe_system_prompt(content=system_content)
         return system_msgs + [
             {"role": "user", "content": user_content},
             {"role": "assistant", "content": translation},

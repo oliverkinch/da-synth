@@ -56,7 +56,7 @@ _EXAMPLES = _load_examples()
 
 class QAGenerator(BaseGenerator):
     def __init__(self, config: DatasetConfig, client: GenerationClient) -> None:
-        super().__init__(config, client)
+        super().__init__(config=config, client=client)
 
     async def build_prompt(self, row: dict[str, Any], persona_text: str | None) -> list[Message]:
         raise NotImplementedError("QAGenerator uses generate_many directly")
@@ -68,19 +68,19 @@ class QAGenerator(BaseGenerator):
         judge: bool = False,
     ) -> list[dict[str, Any]]:
         persona = sample_persona() if self.config.persona_sampling else None
-        persona_text = persona_to_prompt(persona) if persona else None
+        persona_text = persona_to_prompt(persona=persona) if persona else None
 
-        text = self.config.render_text(row)
-        fact = await self._extract_fact(text)
+        text = self.config.render_text(row=row)
+        fact = await self._extract_fact(text=text)
         if not fact:
             return []
 
         try:
-            messages = await self._generate_qa(fact, persona_text)
+            messages = await self._generate_qa(fact=fact, persona_text=persona_text)
         except ValueError:
             return []
 
-        if not passes_filters(messages, self.config.filters):
+        if not passes_filters(messages=messages, cfg=self.config.filters):
             return []
 
         judge_score: int | None = None
@@ -88,18 +88,22 @@ class QAGenerator(BaseGenerator):
         if judge:
             from synth_da.filters import judge_sample
 
-            judge_score, judge_reason = await judge_sample(messages, self.client)
+            judge_score, judge_reason = await judge_sample(messages=messages, client=self.client)
 
         return [
             self._make_sample(
-                messages, seed_config, self._get_source_id(row), judge_score, judge_reason
+                messages=messages,
+                seed_config=seed_config,
+                source_id=self._get_source_id(row=row),
+                judge_score=judge_score,
+                judge_reason=judge_reason,
             )
         ]
 
     async def _extract_fact(self, text: str) -> str | None:
         prompt = _EXTRACT_FACT_PROMPT.format(text=text[:4000])
         raw = await self.client.generate(
-            [{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
         )
         try:
@@ -126,11 +130,11 @@ class QAGenerator(BaseGenerator):
             example_answer=example["answer"],
         )
         raw = await self.client.generate(
-            [{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": prompt}],
             temperature=0.9,
         )
-        question, answer = _parse_qa(raw)
-        system_msgs = self._maybe_system_prompt(random.choice(_SYSTEM_PROMPTS))
+        question, answer = _parse_qa(raw=raw)
+        system_msgs = self._maybe_system_prompt(content=random.choice(_SYSTEM_PROMPTS))
         return system_msgs + [
             {"role": "user", "content": question},
             {"role": "assistant", "content": answer},

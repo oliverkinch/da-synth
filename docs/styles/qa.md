@@ -78,3 +78,66 @@ A high-quality QA sample satisfies all of the following:
 ```
 
 **Why this is a good sample**: the context-setting preamble ("jeg sad og kiggede på kort") is fine — it's realistic and does not contain the answer. The question itself is open: the user does not know which corridor it is. Compare with the bad version: "var det ikke Northeast Corridor, der er den travleste?" — that is a confirmation question and should not be generated.
+
+---
+
+### Example 3 — Direct factual, Danish history
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hvornår fik kvinder stemmeret i Danmark?"
+    },
+    {
+      "role": "assistant",
+      "content": "Kvinder fik stemmeret i Danmark ved grundlovsændringen i 1915."
+    }
+  ]
+}
+```
+
+**Why this is a good sample**: terse and direct — no preamble needed. The question is genuinely open and the answer is a single fact with no padding.
+
+---
+
+### Example 4 — Casual phrasing, Danish geography
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Jeg sidder med en opgave og undrer mig – hvad hedder den halvø, der udgør den kontinentale del af Danmark?"
+    },
+    {
+      "role": "assistant",
+      "content": "Den halvø hedder Jylland."
+    }
+  ]
+}
+```
+
+**Why this is a good sample**: the casual framing ("sidder med en opgave") is natural and the answer is the single word the question is genuinely asking for — no padding.
+
+---
+
+### Example 5 — Multi-part factual
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hvad er det kemiske symbol for guld, og hvad stammer det fra?"
+    },
+    {
+      "role": "assistant",
+      "content": "Symbolet er Au, som stammer fra det latinske ord 'aurum', der betyder guld."
+    }
+  ]
+}
+```
+
+**Why this is a good sample**: the question has two parts and the answer addresses both concisely — no restatement of the question, no trailing caveats.

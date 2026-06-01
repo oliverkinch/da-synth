@@ -77,14 +77,20 @@ def generate(
 
     for cfg_path in config_paths:
         console.rule(f"[bold]{cfg_path.stem}")
-        cfg = load_config(cfg_path)
+        cfg = load_config(path=cfg_path)
         if n_samples is not None:
             cfg = cfg.model_copy(update={"n_samples": n_samples})
 
         from synth_da.pipeline import push_to_hub, run_pipeline
 
         samples = asyncio.run(
-            run_pipeline(cfg, cfg_path, settings, concurrency=concurrency, judge=judge)
+            run_pipeline(
+                config=cfg,
+                config_path=cfg_path,
+                settings=settings,
+                concurrency=concurrency,
+                judge=judge,
+            )
         )
         console.print(f"[green]✓ Generated {len(samples)} samples[/green]")
 
@@ -94,7 +100,7 @@ def generate(
                     f.write(json.dumps(s, ensure_ascii=False) + "\n")
             console.print(f"[green]✓ Wrote {len(samples)} samples to {output}[/green]")
         elif not dry_run:
-            push_to_hub(samples, cfg.task.value, settings)
+            push_to_hub(samples=samples, task=cfg.task.value, settings=settings)
             console.print(f"[green]✓ Pushed to Hub — subset: {cfg.task.value}[/green]")
         else:
             console.print("[yellow]Dry run — skipping Hub push.[/yellow]")

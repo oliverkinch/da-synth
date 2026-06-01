@@ -22,11 +22,11 @@ HF_REPO = "oliverkinch/danish-sft"
 
 def _make_generator(config: DatasetConfig, client: GenerationClient) -> BaseGenerator:
     if config.task == Task.QA:
-        return QAGenerator(config, client)
+        return QAGenerator(config=config, client=client)
     if config.task == Task.SUMMARIZATION:
-        return SummarizationGenerator(config, client)
+        return SummarizationGenerator(config=config, client=client)
     if config.task == Task.TRANSLATION:
-        return TranslationGenerator(config, client)
+        return TranslationGenerator(config=config, client=client)
     raise ValueError(f"Unknown task: {config.task}")
 
 
@@ -37,8 +37,8 @@ async def run_pipeline(
     concurrency: int = 20,
     judge: bool = False,
 ) -> list[dict[str, Any]]:
-    client = GenerationClient(settings)
-    generator = _make_generator(config, client)
+    client = GenerationClient(settings=settings)
+    generator = _make_generator(config=config, client=client)
 
     ds = load_dataset(
         config.seed_dataset,
@@ -74,7 +74,10 @@ async def run_pipeline(
             row_idx += concurrency
 
             results = await asyncio.gather(
-                *[generator.generate_many(row, seed_config_str, judge=judge) for row in batch_rows],
+                *[
+                    generator.generate_many(row=row, seed_config=seed_config_str, judge=judge)
+                    for row in batch_rows
+                ],
                 return_exceptions=True,
             )
 

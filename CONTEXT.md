@@ -1,5 +1,11 @@
 # CONTEXT.md — Danish Synthetic Instruction Data Generator
 
+## Coding Conventions
+
+- **Explicit keyword arguments**: always pass arguments by name at call sites — `f(x=x)` not `f(x)`. Applies to calls to all functions defined in this codebase. External library calls (e.g. `random.choice`, `asyncio.gather`) are exempt.
+
+---
+
 ## Purpose
 
 A Python repository for generating high-quality synthetic Danish instruction-finetuning data (supervised finetuning / SFT). All output is in **messages format** (OpenAI chat style). Data is generated using the Alexandra Institute inference server via the OpenAI client.

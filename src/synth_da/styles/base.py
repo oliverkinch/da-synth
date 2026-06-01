@@ -64,7 +64,7 @@ class BaseGenerator(ABC):
         judge: bool = False,
     ) -> list[dict[str, Any]]:
         """Generate zero or more samples from one seed row."""
-        result = await self.generate_one(row, seed_config, judge=judge)
+        result = await self.generate_one(row=row, seed_config=seed_config, judge=judge)
         return [result] if result is not None else []
 
     async def generate_one(
@@ -75,15 +75,15 @@ class BaseGenerator(ABC):
     ) -> dict[str, Any] | None:
         """Generate a single sample from one seed row. Returns None if filtered out."""
         persona = sample_persona() if self.config.persona_sampling else None
-        persona_text = persona_to_prompt(persona) if persona else None
+        persona_text = persona_to_prompt(persona=persona) if persona else None
 
-        messages = await self.build_prompt(row, persona_text)
+        messages = await self.build_prompt(row=row, persona_text=persona_text)
 
         if not messages or messages[-1]["role"] != "assistant":
-            response = await self.client.generate(messages)
+            response = await self.client.generate(messages=messages)
             messages = messages + [{"role": "assistant", "content": response}]
 
-        if not passes_filters(messages, self.config.filters):
+        if not passes_filters(messages=messages, cfg=self.config.filters):
             return None
 
         judge_score: int | None = None
@@ -91,8 +91,12 @@ class BaseGenerator(ABC):
         if judge:
             from synth_da.filters import judge_sample
 
-            judge_score, judge_reason = await judge_sample(messages, self.client)
+            judge_score, judge_reason = await judge_sample(messages=messages, client=self.client)
 
         return self._make_sample(
-            messages, seed_config, self._get_source_id(row), judge_score, judge_reason
+            messages=messages,
+            seed_config=seed_config,
+            source_id=self._get_source_id(row=row),
+            judge_score=judge_score,
+            judge_reason=judge_reason,
         )

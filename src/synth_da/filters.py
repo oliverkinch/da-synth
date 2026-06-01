@@ -47,14 +47,14 @@ def is_danish(text: str) -> bool:
 
 
 def passes_filters(messages: list[Message], cfg: FilterConfig) -> bool:
-    content = _assistant_content(messages)
+    content = _assistant_content(messages=messages)
     if not content:
         return False
-    if _token_count(content) < cfg.min_assistant_tokens:
+    if _token_count(text=content) < cfg.min_assistant_tokens:
         return False
-    if _repetition_ratio(content) > cfg.max_repetition_ratio:
+    if _repetition_ratio(text=content) > cfg.max_repetition_ratio:
         return False
-    return not cfg.language_check or is_danish(content)
+    return not cfg.language_check or is_danish(text=content)
 
 
 JUDGE_SYSTEM_PROMPT = """\
@@ -85,7 +85,7 @@ async def judge_sample(
         {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
         {"role": "user", "content": f"Eksempel:\n\n{messages}"},
     ]
-    raw = await client.generate(prompt, temperature=0.0, max_tokens=128)
+    raw = await client.generate(messages=prompt, temperature=0.0, max_tokens=128)
     import json
 
     try:

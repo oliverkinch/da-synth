@@ -24,9 +24,9 @@ def _read_names(filename: str) -> list[str]:
     return [n for n in (_NAMES_DIR / filename).read_text(encoding="utf-8").splitlines() if n]
 
 
-_FEMALE_FIRST = _read_names("first_names_female.txt")
-_MALE_FIRST = _read_names("first_names_male.txt")
-_LAST_NAMES = _read_names("last_names.txt")
+_FEMALE_FIRST = _read_names(filename="first_names_female.txt")
+_MALE_FIRST = _read_names(filename="first_names_male.txt")
+_LAST_NAMES = _read_names(filename="last_names.txt")
 _ALL_FIRST = _FEMALE_FIRST + _MALE_FIRST
 
 
@@ -103,7 +103,7 @@ async def run(n: int, settings: Settings, dry_run: bool = False, append: bool = 
     from rich.console import Console
 
     console = Console()
-    client = GenerationClient(settings)
+    client = GenerationClient(settings=settings)
 
     existing_uuids: set[str] = set()
     existing_personas: list[dict[str, Any]] = []
@@ -149,7 +149,7 @@ async def run(n: int, settings: Settings, dry_run: bool = False, append: bool = 
             row: dict[str, Any], danish_name: str, city: str, zipcode: str
         ) -> dict[str, Any]:
             content = await client.generate(
-                [
+                messages=[
                     {
                         "role": "user",
                         "content": _GENERATE_PROMPT.format(
@@ -168,7 +168,7 @@ async def run(n: int, settings: Settings, dry_run: bool = False, append: bool = 
                 temperature=0.8,
                 max_tokens=1024,
             )
-            return _parse_json(content)
+            return _parse_json(content=content)
 
         async def _generate(row: dict[str, Any]) -> dict[str, Any] | None:
             async with semaphore:
@@ -177,8 +177,10 @@ async def run(n: int, settings: Settings, dry_run: bool = False, append: bool = 
                     raw_sex = str(row.get("sex") or "")
                     city, zipcode = random.choice(DANISH_CITIES)
 
-                    danish_name = _sample_name(raw_sex)
-                    fields = await _generate_fields(row, danish_name, city, zipcode)
+                    danish_name = _sample_name(sex=raw_sex)
+                    fields = await _generate_fields(
+                        row=row, danish_name=danish_name, city=city, zipcode=zipcode
+                    )
 
                     return {
                         "uuid": row.get("uuid", ""),
@@ -197,7 +199,7 @@ async def run(n: int, settings: Settings, dry_run: bool = False, append: bool = 
                     errors.append(str(e))
                     return None
 
-        generated = await asyncio.gather(*[_generate(r) for r in rows])
+        generated = await asyncio.gather(*[_generate(row=r) for r in rows])
         for g in generated:
             if g:
                 results.append(g)

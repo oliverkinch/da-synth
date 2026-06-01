@@ -77,10 +77,10 @@ async def run(n: int, settings: Settings, concurrency: int = 20, dry_run: bool =
 
     console = Console()
 
-    client = GenerationClient(settings)
+    client = GenerationClient(settings=settings)
 
     ds = load_dataset("allenai/Dolci-Instruct-SFT", split="train", token=settings.hf_token)
-    rows: list[dict[str, Any]] = [r for r in ds if not _should_skip(r)]
+    rows: list[dict[str, Any]] = [r for r in ds if not _should_skip(row=r)]
     random.shuffle(rows)
     rows = rows[:n]
 
@@ -98,7 +98,7 @@ async def run(n: int, settings: Settings, concurrency: int = 20, dry_run: bool =
                 first_content = (
                     next((m.get("content") for m in messages if m.get("role") == "user"), "") or ""
                 )
-                if is_danish(first_content):
+                if is_danish(text=first_content):
                     return {
                         "messages": [
                             {"role": m["role"], "content": m.get("content") or ""}
@@ -110,19 +110,19 @@ async def run(n: int, settings: Settings, concurrency: int = 20, dry_run: bool =
                         "translated": False,
                     }
 
-                text = _messages_to_text(messages)
+                text = _messages_to_text(messages=messages)
                 translated_raw = await client.generate(
-                    [
+                    messages=[
                         {"role": "system", "content": _SYSTEM_PROMPT},
                         {"role": "user", "content": text},
                     ],
                     temperature=0.3,
                     max_tokens=4096,
                 )
-                translated_msgs = _parse_translated(translated_raw, messages)
+                translated_msgs = _parse_translated(raw=translated_raw, original=messages)
 
                 filter_cfg = FilterConfig(language_check=True, min_assistant_tokens=10)
-                if not passes_filters(translated_msgs, filter_cfg):
+                if not passes_filters(messages=translated_msgs, cfg=filter_cfg):
                     return None
 
                 return {
@@ -140,7 +140,7 @@ async def run(n: int, settings: Settings, concurrency: int = 20, dry_run: bool =
         MofNCompleteColumn(),
     ) as progress:
         task_id = progress.add_task("Translating Dolci", total=len(rows))
-        translated = await asyncio.gather(*[_translate(r) for r in rows])
+        translated = await asyncio.gather(*[_translate(row=r) for r in rows])
         for t in translated:
             progress.advance(task_id)
             if t is None:
