@@ -8,6 +8,6 @@ n_samples: 10000
 persona_sampling: true
 system_prompt_rate: 0.6
 filters:
-  min_assistant_tokens: 20
+  min_assistant_tokens: 5
   max_repetition_ratio: 0.4
   language_check: true
