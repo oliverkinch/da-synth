@@ -30,9 +30,9 @@ def generate(
         Path | None,
         typer.Option("--config", "-c", help="Path to a single dataset config YAML."),
     ] = None,
-    style: Annotated[
+    dataset_type: Annotated[
         str | None,
-        typer.Option("--style", "-s", help="Run all configs for this style (e.g. qa)."),
+        typer.Option("--type", "-t", help="Run all configs for this dataset type (e.g. qa)."),
     ] = None,
     concurrency: Annotated[int, typer.Option(help="Number of concurrent LLM requests.")] = 20,
     dry_run: Annotated[bool, typer.Option(help="Generate but do not push to Hub.")] = False,
@@ -50,11 +50,11 @@ def generate(
     ] = None,
 ) -> None:
     """Generate synthetic Danish instruction data and push to HuggingFace Hub."""
-    if config is None and style is None:
-        console.print("[red]Specify --config or --style.[/red]")
+    if config is None and dataset_type is None:
+        console.print("[red]Specify --config or --type.[/red]")
         raise typer.Exit(1)
-    if config is not None and style is not None:
-        console.print("[red]Specify either --config or --style, not both.[/red]")
+    if config is not None and dataset_type is not None:
+        console.print("[red]Specify either --config or --type, not both.[/red]")
         raise typer.Exit(1)
 
     configs_dir = Path(__file__).parent.parent.parent / "configs"
@@ -62,14 +62,16 @@ def generate(
     config_paths: list[Path] = []
     if config:
         config_paths = [config]
-    elif style:
-        style_dir = configs_dir / style
-        if not style_dir.exists():
-            console.print(f"[red]No configs directory found for style '{style}'.[/red]")
+    elif dataset_type:
+        type_dir = configs_dir / dataset_type
+        if not type_dir.exists():
+            console.print(
+                f"[red]No configs directory found for dataset type '{dataset_type}'.[/red]"
+            )
             raise typer.Exit(1)
-        config_paths = sorted(style_dir.glob("*.yaml"))
+        config_paths = sorted(type_dir.glob("*.yaml"))
         if not config_paths:
-            console.print(f"[yellow]No YAML configs found in {style_dir}[/yellow]")
+            console.print(f"[yellow]No YAML configs found in {type_dir}[/yellow]")
             raise typer.Exit(0)
 
     settings = _load_settings()

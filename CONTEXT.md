@@ -123,8 +123,8 @@ Built with `typer` + `rich` (progress display). Main commands:
 
 ```
 uv run danish-sft generate --config configs/qa/danish_wikipedia.yaml [--concurrency 20]
+uv run danish-sft generate --type qa [--concurrency 20]
 uv run danish-sft generate-personas
-uv run danish-sft translate-nemotron --n 10000
 ```
 
 ---
