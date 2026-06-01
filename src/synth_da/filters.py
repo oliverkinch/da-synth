@@ -61,6 +61,7 @@ Underkend eksemplet hvis:
 - Spørgsmålet indeholder eller parafraserer svaret, fx ved at opstille svarmulighederne ("er det X eller Y?")
 - Spørgsmålet er bekræftelsessøgende eller ledende ("var det ikke...", "vidste du at...")
 - Spørgsmålet bruger AI-formulering som "hvad er et centralt faktum om...", "hvad er det mest kendte faktum om...", "hvad er det bemærkelsesværdige ved..."
+- Faktaet er uden vidensbaseret værdi — en veltrænet sprogmodel ville ikke have gavn af at kende det (fx ultra-specifik produktionstrivialitet, biografiske detaljer om ukendte personer, præcise mål for obskure geografiske steder)
 
 Returner KUN JSON: {{"pass": true}} eller {{"pass": false}}"""
 

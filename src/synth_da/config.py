@@ -35,6 +35,7 @@ class DatasetConfig(BaseModel):
     text_template: str | None = None
 
     n_samples: int = 1000
+    min_seed_chars: int | None = None
     max_seed_chars: int | None = None
     source_id_column: str | None = None
 
@@ -60,6 +61,8 @@ class DatasetConfig(BaseModel):
         """Render and validate seed text; return None if the row should be skipped."""
         text = self.render_text(row=row)
         if not text or not text.strip():
+            return None
+        if self.min_seed_chars and len(text) < self.min_seed_chars:
             return None
         if self.max_seed_chars and len(text) > self.max_seed_chars:
             return None
