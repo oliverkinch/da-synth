@@ -40,22 +40,31 @@ class QAGenerator(BaseGenerator):
             return []
 
         pairs = await self._generate_qa(text=text)
+        self.stats["extracted"] += len(pairs)
 
+        candidates = []
+        for q, a in pairs:
+            if _SKIP_QUESTION_RE.search(q):
+                self.stats["skipped_regex"] += 1
+            elif not passes_filters(text=a, cfg=self.config.filters):
+                self.stats["skipped_filter"] += 1
+            else:
+                candidates.append((q, a))
+
+        if not candidates:
+            return []
+
+        verdicts = await qa_judge(pairs=candidates, client=self.client)
         records = []
-        for question, answer in pairs:
-            if _SKIP_QUESTION_RE.search(question):
-                continue
-            if not passes_filters(text=answer, cfg=self.config.filters):
-                continue
-            if not await qa_judge(question=question, answer=answer, client=self.client):
-                continue
-            records.append(
-                self._make_record(
-                    fields={"question": question, "answer": answer},
-                    seed_config=seed_config,
-                    row=row,
+        for (q, a), verdict in zip(candidates, verdicts, strict=True):
+            if verdict:
+                records.append(
+                    self._make_record(
+                        fields={"question": q, "answer": a}, seed_config=seed_config, row=row
+                    )
                 )
-            )
+            else:
+                self.stats["skipped_judge"] += 1
         return records
 
     async def _generate_qa(self, text: str) -> list[tuple[str, str]]:

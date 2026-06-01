@@ -82,7 +82,7 @@ Sørg for at erhverv og uddannelsesniveau er realistisk konsistente med hinanden
 
 Svar kun med et JSON-objekt (ingen forklaring, ingen markdown-blokke):
 {{
-  "persona": "<levende beskrivelse af karakter og personlighed — begynd med {danish_name}>",
+  "persona": "<levende beskrivelse af karakter og personlighed - begynd med {danish_name}>",
   "sex": "<køn på dansk: Mand / Kvinde / Ikke-binær>",
   "occupation": "<erhvervstitel på dansk>",
   "education_level": "<uddannelsesniveau på dansk>",
@@ -119,7 +119,7 @@ async def run(n: int, settings: Settings, dry_run: bool = False, append: bool = 
 
     console.print("[blue]Downloading nvidia/Nemotron-Personas-USA…[/blue]")
     ds = load_dataset("nvidia/Nemotron-Personas-USA", split="train", token=settings.hf_token)
-    console.print(f"[green]✓ Loaded {len(ds)} personas — columns: {ds.column_names}[/green]")
+    console.print(f"[green]✓ Loaded {len(ds)} personas - columns: {ds.column_names}[/green]")
 
     all_rows = [dict(r) for r in ds]
     eligible = [
@@ -210,7 +210,7 @@ async def run(n: int, settings: Settings, dry_run: bool = False, append: bool = 
         for err in errors[:5]:
             console.print(f"  [red]{err}[/red]")
     if not results:
-        console.print("[red]No personas generated — aborting.[/red]")
+        console.print("[red]No personas generated - aborting.[/red]")
         return
     console.print(f"[green]✓ Generated {len(results)} Danish personas[/green]")
 

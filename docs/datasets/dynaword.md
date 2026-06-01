@@ -12,19 +12,19 @@ These subsets are excluded from generation entirely.
 
 | Subset | Reason |
 |---|---|
-| `adl` | Historical Danish literature — archaic language |
+| `adl` | Historical Danish literature - archaic language |
 | `grundtvig` | Historical religious/philosophical texts |
 | `enevaeldens_nyheder` | Historical newspapers (1660–1849), OCR quality |
 | `relig` | Religious texts |
 | `kb_historical_letters` | Historical letters (1500s–1900s) |
-| `gutenberg` | Project Gutenberg — mostly translated works, archaic |
-| `jvj` | Johannes V. Jensen — early 20th-century prose |
-| `memo` | Modern Breakthrough novels (1870–1899) — archaic |
-| `hvadvilduhelst` | "Would you rather" questions — too short/trivial |
-| `spont` | Spontaneous conversational speech — wrong register |
+| `gutenberg` | Project Gutenberg - mostly translated works, archaic |
+| `jvj` | Johannes V. Jensen - early 20th-century prose |
+| `memo` | Modern Breakthrough novels (1870–1899) - archaic |
+| `hvadvilduhelst` | "Would you rather" questions - too short/trivial |
+| `spont` | Spontaneous conversational speech - wrong register |
 | `synne` | Sønderjysk dialect content |
-| `historical-danish-handwriting` | Parish/council minutes (1841–1939) — OCR, archaic |
-| `cellar` | EU legal documents — already covered by `oliverkinch/eur-lex` |
+| `historical-danish-handwriting` | Parish/council minutes (1841–1939) - OCR, archaic |
+| `cellar` | EU legal documents - already covered by `oliverkinch/eur-lex` |
 
 Subsets not selected (evaluated but cut):
 
@@ -32,26 +32,26 @@ Subsets not selected (evaluated but cut):
 |---|---|
 | `wikipedia` | Already covered by `oliverkinch/danish_wikipedia` (better, deduplicated) |
 | `eur-lex-sum-da` | Already covered by `oliverkinch/eur-lex-sum` |
-| `ep` | Europarl — overlaps with EUR-Lex content |
-| `municipality_meetings` | Very procedural committee minutes — low instruction diversity |
-| `kb_administrative_publication` | 845M tokens of mixed administrative content — quality too variable |
-| `hest` | Horse enthusiast forum — niche/informal, low training value |
-| `ai-aktindsigt` | Municipality website copy — variable quality, low information density |
-| `opensubtitles` | Dialogue/subtitle format — not suited to QA or summarization seeds |
-| `dannet` | Danish WordNet — structured lexical resource, not prose |
-| `depbank` | Universal Dependencies treebank — too small, structured |
+| `ep` | Europarl - overlaps with EUR-Lex content |
+| `municipality_meetings` | Very procedural committee minutes - low instruction diversity |
+| `kb_administrative_publication` | 845M tokens of mixed administrative content - quality too variable |
+| `hest` | Horse enthusiast forum - niche/informal, low training value |
+| `ai-aktindsigt` | Municipality website copy - variable quality, low information density |
+| `opensubtitles` | Dialogue/subtitle format - not suited to QA or summarization seeds |
+| `dannet` | Danish WordNet - structured lexical resource, not prose |
+| `depbank` | Universal Dependencies treebank - too small, structured |
 | `botxt` | Bornholmsk dialect dictionary |
-| `wiki-comments` | Wikipedia talk page comments — too short, informal |
-| `ncc_parliament` | Norwegian parliament proceedings in Danish — off-target |
-| `ncc_maalfrid` | Norwegian institutional content in Danish — off-target |
-| `ncc_newspaper` | 5.4k OCR'd newspaper pages — low volume, noisy |
-| `nota` | Read-aloud text — too small (446 rows) |
-| `naat` | Danish speeches archive — too small (129 rows) |
-| `wikibooks` | Danish Wikibooks — too small (1.7k rows) |
-| `wikisource` | Danish Wikisource — too small (3k rows) |
-| `wiki-comments` | Wikipedia comments — too short, informal |
-| `miljoeportalen` | 2.1M rows of environment portal pages — noisy web content |
-| `danske-taler` | Danish speeches — too small (2.9k rows) |
+| `wiki-comments` | Wikipedia talk page comments - too short, informal |
+| `ncc_parliament` | Norwegian parliament proceedings in Danish - off-target |
+| `ncc_maalfrid` | Norwegian institutional content in Danish - off-target |
+| `ncc_newspaper` | 5.4k OCR'd newspaper pages - low volume, noisy |
+| `nota` | Read-aloud text - too small (446 rows) |
+| `naat` | Danish speeches archive - too small (129 rows) |
+| `wikibooks` | Danish Wikibooks - too small (1.7k rows) |
+| `wikisource` | Danish Wikisource - too small (3k rows) |
+| `wiki-comments` | Wikipedia comments - too short, informal |
+| `miljoeportalen` | 2.1M rows of environment portal pages - noisy web content |
+| `danske-taler` | Danish speeches - too small (2.9k rows) |
 
 ---
 
@@ -73,7 +73,7 @@ Subsets not selected (evaluated but cut):
 
 ### Style assignment rationale
 
-**grounded only** (`ft`, `health_hoofdstaden`, `skat`): content that is better suited to targeted explanation and Q&A than to compression. Folketing debate transcripts, healthcare guidelines, and tax authority content are instructional or argumentative in structure — summarisation is less natural than asking what something means or what a provision requires.
+**grounded only** (`ft`, `health_hoofdstaden`, `skat`): content that is better suited to targeted explanation and Q&A than to compression. Folketing debate transcripts, healthcare guidelines, and tax authority content are instructional or argumentative in structure - summarisation is less natural than asking what something means or what a provision requires.
 
 **grounded + summarization** (all others): substantive prose documents where both styles produce useful samples. Academic articles, legal texts, news articles, and court judgments all have enough information density for meaningful compression as well as targeted instruction following.
 

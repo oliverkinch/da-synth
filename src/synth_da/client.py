@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -39,20 +38,3 @@ class GenerationClient:
         if content is None:
             raise ValueError("Model returned empty response")
         return content
-
-    async def generate_batch(
-        self,
-        messages_list: list[list[Message]],
-        concurrency: int = 20,
-        **kwargs: Any,
-    ) -> list[str | Exception]:
-        semaphore = asyncio.Semaphore(concurrency)
-
-        async def _bounded(msgs: list[Message]) -> str | Exception:
-            async with semaphore:
-                try:
-                    return await self.generate(messages=msgs, **kwargs)
-                except Exception as e:
-                    return e
-
-        return await asyncio.gather(*[_bounded(m) for m in messages_list])

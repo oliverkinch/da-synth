@@ -1,4 +1,4 @@
-"""Summarization generator — two LLM calls: generate document, then summarize it."""
+"""Summarization generator - two LLM calls: generate document, then summarize it."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from synth_da.styles.base import BaseGenerator
 
 _DOCUMENT_PROMPT = """\
 Skriv en naturlig, velskrevet dansk tekst om samme emne som teksten herunder.
-Teksten skal læses som originalt skrevet dansk — ikke som en oversættelse eller omskrivning.
+Teksten skal læses som originalt skrevet dansk - ikke som en oversættelse eller omskrivning.
 Længde: 150–300 ord.
 
 {seed_text}"""

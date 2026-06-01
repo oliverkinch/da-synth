@@ -18,7 +18,7 @@ A high-quality summarization record satisfies all of the following:
 ## Known Pitfalls
 
 - **Opening-sentence bias**: the summary covers only the first paragraph and ignores the rest of the document.
-- **Faithfulness violation**: the summary introduces information not present in the document — common when the model draws on training knowledge rather than the document content.
+- **Faithfulness violation**: the summary introduces information not present in the document - common when the model draws on training knowledge rather than the document content.
 - **Over-long summaries**: the model produces a near-full paraphrase rather than a genuine compression.
 - **Calqued document**: the generated document reads as translated EU or academic prose rather than naturally written Danish.
 - **Coherence break**: the summary refers to "ovenstående tekst" or uses "han/hun" without a clear antecedent.
@@ -29,7 +29,7 @@ A high-quality summarization record satisfies all of the following:
 
 ---
 
-### Example 1 — Factual article, prose summary
+### Example 1 - Factual article, prose summary
 
 ```json
 {
@@ -42,7 +42,7 @@ A high-quality summarization record satisfies all of the following:
 
 ---
 
-### Example 2 — Research finding, tight compression
+### Example 2 - Research finding, tight compression
 
 ```json
 {
@@ -55,12 +55,12 @@ A high-quality summarization record satisfies all of the following:
 
 ---
 
-### Example 3 — Institutional topic, tight compression
+### Example 3 - Institutional topic, tight compression
 
 ```json
 {
-  "document": "Den danske model for arbejdsmarkedsrelationer bygger på tre søjler: organiserede arbejdsgivere, stærke fagforeninger og en tradition for kollektive overenskomster uden statslig indblanding. Systemet adskiller sig fra de fleste andre landes arbejdsmarkeder ved, at løn og arbejdsvilkår primært fastsættes gennem forhandlinger mellem arbejdsmarkedets parter frem for ved lovgivning. Til gengæld er der politisk opbakning til en fleksibel arbejdsmarkedslovgivning kombineret med generøse dagpengesatser — det såkaldte flexicurity-system.",
-  "summary": "Den danske arbejdsmarkedsmodel hviler på trepartsforhandlinger uden statslig indblanding og kombinerer fleksibel ansættelseslovgivning med generøse dagpenge — det såkaldte flexicurity-system."
+  "document": "Den danske model for arbejdsmarkedsrelationer bygger på tre søjler: organiserede arbejdsgivere, stærke fagforeninger og en tradition for kollektive overenskomster uden statslig indblanding. Systemet adskiller sig fra de fleste andre landes arbejdsmarkeder ved, at løn og arbejdsvilkår primært fastsættes gennem forhandlinger mellem arbejdsmarkedets parter frem for ved lovgivning. Til gengæld er der politisk opbakning til en fleksibel arbejdsmarkedslovgivning kombineret med generøse dagpengesatser - det såkaldte flexicurity-system.",
+  "summary": "Den danske arbejdsmarkedsmodel hviler på trepartsforhandlinger uden statslig indblanding og kombinerer fleksibel ansættelseslovgivning med generøse dagpenge - det såkaldte flexicurity-system."
 }
 ```
 

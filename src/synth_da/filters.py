@@ -16,7 +16,9 @@ from synth_da.config import FilterConfig
 if TYPE_CHECKING:
     from synth_da.client import GenerationClient
 
-_EXAMPLES_PATH = Path(__file__).parent.parent.parent / "assets" / "qa_judge_examples.jsonl"
+_EXAMPLES_PATH = (
+    Path(__file__).parent.parent.parent / "assets" / "qa_judge_rejection_examples.jsonl"
+)
 _examples_cache: list[dict[str, Any]] | None = None
 
 _detector = LanguageDetectorBuilder.from_languages(
@@ -68,39 +70,46 @@ def _load_examples() -> list[dict[str, Any]]:
     return _examples_cache
 
 
-def _build_judge_prompt(question: str, answer: str) -> str:
+def _build_judge_prompt(pairs: list[tuple[str, str]]) -> str:
     examples = _load_examples()
-    approved = [e for e in examples if e.get("pass") is True]
-    rejected = [e for e in examples if e.get("pass") is False]
 
-    lines = ["Du er kvalitetsdommer for et vidensbaseret dansk QA-datasæt.\n"]
+    lines = [
+        "Du er kvalitetsdommer for et vidensbaseret dansk QA-datasæt.\n"
+        "Et godt par har et svar der er tidløst (ikke forældet om et år) og selvstændigt "
+        "(kræver ikke adgang til kildeteksten).\n"
+    ]
 
-    if approved:
-        lines.append("Eksempler på godkendte par:\n")
-        for e in approved:
-            lines.append(f"Q: {e['question']}\nA: {e['answer']}\n")
+    if examples:
+        lines.append("Afvis par som disse:\n")
+        for e in examples:
+            reason = e.get("reason", "")
+            entry = f"Q: {e['question']}\nA: {e['answer']}\n"
+            lines.append(entry if not reason else entry + f"Grund: {reason}\n")
 
-    if rejected:
-        lines.append("Eksempler på underkende par:\n")
-        for e in rejected:
-            lines.append(f"Q: {e['question']}\nA: {e['answer']}\n")
-
+    pair_lines = [f"Par {i}:\nQ: {q}\nA: {a}" for i, (q, a) in enumerate(pairs, 1)]
     lines.append(
-        f'Vurder dette par og returner KUN JSON: {{"pass": true}} eller {{"pass": false}}'
-        f"\n\nQ: {question}\nA: {answer}"
+        f"Vurder disse {len(pairs)} par og returner KUN en JSON-liste med true/false per par, "
+        f"f.eks. [true, false].\n\n" + "\n\n".join(pair_lines)
     )
+
     return "\n".join(lines)
 
 
-async def qa_judge(question: str, answer: str, client: GenerationClient) -> bool:
-    prompt = _build_judge_prompt(question=question, answer=answer)
+async def qa_judge(pairs: list[tuple[str, str]], client: GenerationClient) -> list[bool]:
+    if not pairs:
+        return []
+    prompt = _build_judge_prompt(pairs)
+    max_tokens = len(pairs) * 12
     raw = await client.generate(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0,
-        max_tokens=16,
+        max_tokens=max_tokens,
     )
     try:
-        return bool(json.loads(raw).get("pass", False))
+        parsed = json.loads(raw)
+        if isinstance(parsed, list) and len(parsed) == len(pairs):
+            return [bool(v) for v in parsed]
     except Exception:
-        warnings.warn(f"qa_judge: could not parse response {raw!r:.80}", stacklevel=2)
-        return False
+        pass
+    warnings.warn(f"qa_judge: could not parse response {raw!r:.80}", stacklevel=2)
+    return [False] * len(pairs)

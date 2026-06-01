@@ -29,9 +29,9 @@ class DatasetConfig(BaseModel):
     seed_subset: str = "default"
     seed_split: str = "train"
 
-    # Column mapping — single column
+    # Column mapping - single column
     text_column: str | None = None
-    # Column mapping — merged columns via template
+    # Column mapping - merged columns via template
     text_template: str | None = None
 
     n_samples: int = 1000

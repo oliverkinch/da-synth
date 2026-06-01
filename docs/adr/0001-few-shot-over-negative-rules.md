@@ -1,14 +1,14 @@
-# ADR 0001 — Steer generation quality through few-shot examples, not negative rules
+# ADR 0001 - Steer generation quality through few-shot examples, not negative rules
 
-**Status**: Superseded — few-shot injection removed entirely; golden examples now live only in the style doc for human alignment. See conversation from 2026-06-01.
+**Status**: Superseded - few-shot injection removed entirely; golden examples now live only in the style doc for human alignment. See conversation from 2026-06-01.
 
 ## Context
 
 Early QA generation produced confirmation-seeking questions ("var det ikke Linda Blair, der spillede i Eksorcisten?"). The first fix added a negative pattern list to the generation prompt enumerating forbidden phrasings. This approach works for the specific patterns listed but has three failure modes:
 
-1. **Accumulation** — every new failure mode adds another rule; prompts become noisy and hard to reason about.
-2. **False precision** — listing `"var det ikke X?"` does not prevent `"er det ikke sandt at X?"` or adjacent forms the list missed.
-3. **Overfitting** — the model avoids the listed strings but the underlying problem (confirming what the user already knows) is not addressed.
+1. **Accumulation** - every new failure mode adds another rule; prompts become noisy and hard to reason about.
+2. **False precision** - listing `"var det ikke X?"` does not prevent `"er det ikke sandt at X?"` or adjacent forms the list missed.
+3. **Overfitting** - the model avoids the listed strings but the underlying problem (confirming what the user already knows) is not addressed.
 
 ## Decision
 
@@ -22,9 +22,9 @@ Concrete rules:
 
 ## Alternatives considered
 
-**Keep negative rules** — simple to add, but accumulates indefinitely and treats symptoms rather than causes.
+**Keep negative rules** - simple to add, but accumulates indefinitely and treats symptoms rather than causes.
 
-**More golden examples in the prompt** — two or three examples steer more strongly but reduce output diversity. One example is enough to pattern-match good structure without over-constraining content.
+**More golden examples in the prompt** - two or three examples steer more strongly but reduce output diversity. One example is enough to pattern-match good structure without over-constraining content.
 
 ## Consequences
 

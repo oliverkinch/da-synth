@@ -113,9 +113,9 @@ def generate(
             console.print(f"[green]✓ Wrote {len(samples)} samples to {output}[/green]")
         elif not dry_run:
             push_to_hub(records=samples, task=cfg.task, settings=settings)
-            console.print(f"[green]✓ Pushed to Hub — subset: {cfg.task.value}[/green]")
+            console.print(f"[green]✓ Pushed to Hub - subset: {cfg.task.value}[/green]")
         else:
-            console.print("[yellow]Dry run — skipping Hub push.[/yellow]")
+            console.print("[yellow]Dry run - skipping Hub push.[/yellow]")
 
 
 @app.command()

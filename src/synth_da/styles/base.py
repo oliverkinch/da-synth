@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from abc import ABC, abstractmethod
+from collections import Counter
 from typing import Any
 
 from synth_da.client import GenerationClient
@@ -14,6 +15,7 @@ class BaseGenerator(ABC):
     def __init__(self, config: DatasetConfig, client: GenerationClient) -> None:
         self.config = config
         self.client = client
+        self.stats: Counter[str] = Counter()
 
     @abstractmethod
     async def generate_many(

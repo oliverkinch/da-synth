@@ -9,7 +9,7 @@
 A high-quality translation record satisfies all of the following:
 
 - **Semantic fidelity**: every meaning present in the Danish text is present in the English translation. Nothing is added, omitted, or distorted.
-- **Register preservation**: the English translation matches the register of the Danish original — formal stays formal, conversational stays conversational.
+- **Register preservation**: the English translation matches the register of the Danish original - formal stays formal, conversational stays conversational.
 - **Naturalness**: the English reads as text originally written in English, not as a word-for-word rendering of Danish. Calqued syntax is a defect.
 - **Terminology consistency**: domain-specific terms are translated using established English equivalents, not ad-hoc renderings.
 - **Document naturalness (DA side)**: the Danish text reads as naturally written Danish, not as translated EU or institutional prose.
@@ -29,12 +29,12 @@ A high-quality translation record satisfies all of the following:
 
 ---
 
-### Example 1 — Factual prose, neutral register
+### Example 1 - Factual prose, neutral register
 
 ```json
 {
   "da": "Vindenergi spiller en stadig større rolle i Danmarks energiforsyning. I 2023 dækkede vindmøller over 55 procent af landets elforbrug, hvilket placerer Danmark blandt de lande i verden med den højeste andel af vindkraft i elproduktionen. Den store udbredelse skyldes dels gunstige geografiske forhold med lange kyststrækninger og høj gennemsnitlig vindhastighed, dels en langsigtet politisk satsning på vedvarende energi siden 1970'erne.",
-  "en": "Wind energy plays an increasingly important role in Denmark's energy supply. In 2023, wind turbines covered more than 55 percent of the country's electricity consumption, placing Denmark among the world's leading nations in terms of wind power's share of electricity generation. This high penetration is due partly to favourable geographic conditions — long coastlines and high average wind speeds — and partly to a long-term political commitment to renewable energy dating back to the 1970s."
+  "en": "Wind energy plays an increasingly important role in Denmark's energy supply. In 2023, wind turbines covered more than 55 percent of the country's electricity consumption, placing Denmark among the world's leading nations in terms of wind power's share of electricity generation. This high penetration is due partly to favourable geographic conditions - long coastlines and high average wind speeds - and partly to a long-term political commitment to renewable energy dating back to the 1970s."
 }
 ```
 
@@ -42,7 +42,7 @@ A high-quality translation record satisfies all of the following:
 
 ---
 
-### Example 2 — Institutional topic, formal register
+### Example 2 - Institutional topic, formal register
 
 ```json
 {
@@ -55,7 +55,7 @@ A high-quality translation record satisfies all of the following:
 
 ---
 
-### Example 3 — Conversational register
+### Example 3 - Conversational register
 
 ```json
 {

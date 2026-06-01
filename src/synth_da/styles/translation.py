@@ -1,4 +1,4 @@
-"""Translation generator — two LLM calls: generate Danish passage, then translate to English."""
+"""Translation generator - two LLM calls: generate Danish passage, then translate to English."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from synth_da.styles.base import BaseGenerator
 _DA_GENERATION_PROMPT = """\
 Skriv en naturlig, velskrevet dansk tekst om samme emne som teksten herunder.
 Teksten skal:
-- Læses som originalt skrevet dansk — ikke som en oversættelse
+- Læses som originalt skrevet dansk - ikke som en oversættelse
 - Have samme register som kildeteksten (formelt forbliver formelt, hverdagslig forbliver hverdagslig)
 - Være 100–200 ord lang
 
@@ -21,10 +21,10 @@ Teksten skal:
 _EN_TRANSLATION_PROMPT = """\
 Translate the following Danish text to English.
 
-- Preserve the exact meaning — nothing added, omitted, or distorted
+- Preserve the exact meaning - nothing added, omitted, or distorted
 - Preserve the register of the original (formal stays formal, conversational stays conversational)
 - Write natural English, not a word-for-word rendering of Danish syntax
-- Translate only — add no commentary or explanations
+- Translate only - add no commentary or explanations
 
 {da_text}"""
 

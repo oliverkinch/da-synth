@@ -62,7 +62,7 @@ async def run_pipeline(
         from rich.console import Console
 
         Console().print(
-            "[yellow]No unseen rows after deduplication — nothing to generate.[/yellow]"
+            "[yellow]No unseen rows after deduplication - nothing to generate.[/yellow]"
         )
         return []
 
@@ -85,7 +85,7 @@ async def run_pipeline(
 
         row_idx = 0
         consecutive_error_batches = 0
-        while len(samples) < config.n_samples and row_idx < len(all_rows) * 10:
+        while len(samples) < config.n_samples and row_idx < len(rows) * 10:
             batch_rows = [rows[(row_idx + i) % len(rows)] for i in range(concurrency)]
             row_idx += concurrency
 
@@ -124,13 +124,33 @@ async def run_pipeline(
                 if consecutive_error_batches >= 5:
                     from rich.console import Console
 
-                    Console().print("[red]5 consecutive all-error batches — aborting.[/red]")
+                    Console().print("[red]5 consecutive all-error batches - aborting.[/red]")
                     break
 
     if errors:
         from rich.console import Console
 
         Console().print(f"[yellow]⚠ {errors} generation errors (skipped)[/yellow]")
+
+    if generator.stats:
+        from rich.console import Console
+        from rich.table import Table
+
+        s = generator.stats
+        extracted = s["extracted"]
+        accepted = extracted - s["skipped_regex"] - s["skipped_filter"] - s["skipped_judge"]
+        table = Table(title="Filter funnel", show_header=False, box=None, padding=(0, 2))
+        table.add_column(style="bold")
+        table.add_column(justify="right")
+        table.add_row("Extracted", str(extracted))
+        if s["skipped_regex"]:
+            table.add_row("  – regex", str(s["skipped_regex"]))
+        if s["skipped_filter"]:
+            table.add_row("  – filters", str(s["skipped_filter"]))
+        if s["skipped_judge"]:
+            table.add_row("  – judge", str(s["skipped_judge"]))
+        table.add_row("Accepted", str(accepted))
+        Console().print(table)
 
     return samples[: config.n_samples]
 
