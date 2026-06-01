@@ -61,6 +61,8 @@ class QAGenerator(BaseGenerator):
         persona = sample_persona() if self.config.persona_sampling else None
 
         text = self.config.render_text(row=row)
+        if not text or not text.strip():
+            return []
         messages = await self._generate_qa(text=text, persona=persona)
         if messages is None:
             return []

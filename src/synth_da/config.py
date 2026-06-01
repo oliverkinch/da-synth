@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
@@ -65,12 +65,12 @@ class DatasetConfig(BaseModel):
                 raise ValueError("Specify either text_column or text_template, not both")
         return self
 
-    def render_text(self, row: dict[str, str]) -> str:
+    def render_text(self, row: dict[str, Any]) -> str:
         """Render seed text from a dataset row using the column mapping."""
         if self.text_template:
-            return self.text_template.format(**row)
+            return self.text_template.format(**{k: (v or "") for k, v in row.items()})
         if self.text_column:
-            return row[self.text_column]
+            return str(row.get(self.text_column) or "")
         raise ValueError("No text column mapping configured")
 
 
