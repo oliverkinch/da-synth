@@ -24,6 +24,9 @@ A fact extracted from a seed document that a competent Danish speaker could plau
 **Style Doc**
 A per-style markdown document (`docs/styles/<style>.md`). Contains: definition, quality criteria, known pitfalls, and golden example samples. Used for human review and the `/dataset_review` skill — never injected into generation prompts.
 
+**Generation Examples**
+A small pool of curated Q+A pairs stored as individual JSON files under `assets/<style>_examples/`. One example is sampled randomly per generation call and injected into the prompt as a few-shot steer. Distinct from Style Doc golden examples: generation examples are chosen for structural clarity, not topic coverage. See ADR 0001.
+
 **Quality Criteria**
 A plain-text description of what makes a high-quality sample for a given style. Stored in the style's YAML config and injected into generation prompts. Distinct from golden examples (which live only in the style doc).
 

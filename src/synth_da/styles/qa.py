@@ -1,9 +1,10 @@
-"""QA generator — two-step: extract general-knowledge facts, then generate Q+A per fact."""
+"""QA generator — two-step: extract general-knowledge fact, then generate Q+A."""
 
 from __future__ import annotations
 
 import json
 import random
+from pathlib import Path
 from typing import Any
 
 from synth_da.client import GenerationClient, Message
@@ -11,6 +12,8 @@ from synth_da.config import DatasetConfig
 from synth_da.filters import passes_filters
 from synth_da.personas import persona_to_prompt, sample_persona
 from synth_da.styles.base import BaseGenerator
+
+_EXAMPLES_DIR = Path(__file__).parent.parent.parent.parent / "assets" / "qa_examples"
 
 _SYSTEM_PROMPTS = [
     "Du er en hjælpsom assistent. Svar altid på dansk.",
@@ -52,20 +55,31 @@ Kontekst (kun til reference — må ikke citeres i svaret):
 {text}
 ---
 {persona_note}
-Regler:
-- Spørgsmålet skal være ægte åbent — brugeren kender ikke svaret og spørger fordi de vil vide det
-- Undgå bekræftelsesspørgsmål: IKKE "var det ikke X?", "er det ikke rigtigt at X?", \
-"kan du bekræfte at X?" — det er ikke et vidensøgende spørgsmål
-- Spørgsmålet må ikke indeholde svaret eller en tydelig omformulering af det
-- Spørgsmålet må gerne have en kort kontekst-sætning som optakt \
-("Jeg sad og tænkte på X — hvad er Y?"), men selve spørgsmålet skal være åbent
-- Spørgsmålet skal lyde naturligt og uformelt, som noget en rigtig person ville skrive i en chat
-- Svaret skal være korrekt, kortfattet og på dansk
-- Svaret må ikke referere til "teksten" eller "konteksten"
+Spørgsmålet skal være ægte åbent — brugeren kender ikke svaret og spørger fordi de vil vide det. \
+Spørgsmålet skal lyde naturligt og uformelt. Svaret skal være korrekt og kortfattet.
+
+Eksempel på et godt spørgsmål-og-svar-par:
+SPØRGSMÅL: {example_question}
+SVAR: {example_answer}
 
 Svar i præcis dette format:
 SPØRGSMÅL: <spørgsmål>
 SVAR: <svar>"""
+
+
+def _load_examples() -> list[dict[str, str]]:
+    examples = []
+    for path in sorted(_EXAMPLES_DIR.glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        msgs = data.get("messages", [])
+        q = next((m["content"] for m in msgs if m["role"] == "user"), None)
+        a = next((m["content"] for m in msgs if m["role"] == "assistant"), None)
+        if q and a:
+            examples.append({"question": q, "answer": a})
+    return examples
+
+
+_EXAMPLES = _load_examples()
 
 
 class QAGenerator(BaseGenerator):
@@ -125,6 +139,7 @@ class QAGenerator(BaseGenerator):
         return None
 
     async def _generate_qa(self, text: str, fact: str, persona_text: str | None) -> list[Message]:
+        example = random.choice(_EXAMPLES)
         persona_note = ""
         if persona_text:
             persona_note = (
@@ -136,6 +151,8 @@ class QAGenerator(BaseGenerator):
             fact=fact,
             text=text[:4000],
             persona_note=persona_note,
+            example_question=example["question"],
+            example_answer=example["answer"],
         )
         raw = await self.client.generate(
             [{"role": "user", "content": prompt}],
