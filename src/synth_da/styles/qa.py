@@ -11,7 +11,7 @@ from synth_da.config import DatasetConfig
 from synth_da.filters import passes_filters
 from synth_da.styles.base import BaseGenerator
 
-_BIRTH_QUESTION_RE = re.compile(r"\bfødt\b", re.IGNORECASE)
+_SKIP_QUESTION_RE = re.compile(r"\bfødt\b|\bi dag\b", re.IGNORECASE)
 
 _PROMPT = """\
 Find op til 3 gode, indbyrdes forskellige fakta fra teksten der egner sig til et vidensbaseret datasæt.
@@ -43,7 +43,7 @@ class QAGenerator(BaseGenerator):
 
         records = []
         for question, answer in pairs:
-            if _BIRTH_QUESTION_RE.search(question):
+            if _SKIP_QUESTION_RE.search(question):
                 continue
             if not passes_filters(text=answer, cfg=self.config.filters):
                 continue
