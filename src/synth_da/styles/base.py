@@ -59,10 +59,11 @@ class BaseGenerator(ABC):
         persona = sample_persona() if self.config.persona_sampling else None
         persona_text = persona_to_prompt(persona) if persona else None
 
-        prompt = await self.build_prompt(row, persona_text)
-        response = await self.client.generate(prompt)
+        messages = await self.build_prompt(row, persona_text)
 
-        messages = prompt + [{"role": "assistant", "content": response}]
+        if not messages or messages[-1]["role"] != "assistant":
+            response = await self.client.generate(messages)
+            messages = messages + [{"role": "assistant", "content": response}]
 
         if not passes_filters(messages, self.config.filters):
             return None

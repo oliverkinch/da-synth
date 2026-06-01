@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from collections import Counter
+from typing import TYPE_CHECKING
 
 from lingua import Language, LanguageDetectorBuilder
 
 from synth_da.config import FilterConfig
+
+if TYPE_CHECKING:
+    from synth_da.client import GenerationClient
 
 Message = dict[str, str]
 
@@ -39,7 +43,7 @@ def _repetition_ratio(text: str, n: int = 4) -> float:
 
 def is_danish(text: str) -> bool:
     detected = _detector.detect_language_of(text)
-    return detected == Language.DANISH
+    return bool(detected == Language.DANISH)
 
 
 def passes_filters(messages: list[Message], cfg: FilterConfig) -> bool:
@@ -50,9 +54,7 @@ def passes_filters(messages: list[Message], cfg: FilterConfig) -> bool:
         return False
     if _repetition_ratio(content) > cfg.max_repetition_ratio:
         return False
-    if cfg.language_check and not is_danish(content):
-        return False
-    return True
+    return not cfg.language_check or is_danish(content)
 
 
 JUDGE_SYSTEM_PROMPT = """\
@@ -73,9 +75,9 @@ Svar KUN med et JSON-objekt på formen:
 
 async def judge_sample(
     messages: list[Message],
-    client: "GenerationClient",  # noqa: F821 — avoid circular import
+    client: GenerationClient,
 ) -> tuple[int, str]:
-    from synth_da.client import GenerationClient  # local import to avoid circular
+    from synth_da.client import GenerationClient  # local import to avoid circular at runtime
 
     assert isinstance(client, GenerationClient)
 
