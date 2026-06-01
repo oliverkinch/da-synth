@@ -14,7 +14,7 @@ from synth_da.styles.base import BaseGenerator
 
 _SYSTEM_PROMPTS = [
     "Du er en hjælpsom assistent. Svar altid på dansk.",
-    "Du er en vidende assistent der svarer præcist og kortfattet på dansk.",
+    "Du er en kyndig assistent der svarer præcist og kortfattet på dansk.",
     "Svar på brugerens spørgsmål på dansk.",
 ]
 
