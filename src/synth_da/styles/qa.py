@@ -14,6 +14,7 @@ _PROMPT = """\
 Find et godt faktum fra teksten der egner sig til et vidensbaseret datasæt.
 Genér et direkte dansk spørgsmål som faktaet besvarer — ingen indledende sætninger eller kontekst.
 Faktaet er svaret — det må ikke fremgå af spørgsmålet.
+Svaret skal direkte og præcist besvare spørgsmålet.
 Returner som JSON eller null.
 
 {{"question": "Hvornår fik kvinder stemmeret i Danmark?", "answer": "Ved grundlovsændringen i 1915."}}
