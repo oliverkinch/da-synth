@@ -8,7 +8,7 @@ from typing import Any
 
 from synth_da.client import GenerationClient
 from synth_da.config import DatasetConfig
-from synth_da.filters import passes_filters
+from synth_da.filters import passes_filters, qa_judge
 from synth_da.styles.base import BaseGenerator
 
 _SKIP_QUESTION_RE = re.compile(r"\bfødt\b|\bi dag\b", re.IGNORECASE)
@@ -46,6 +46,8 @@ class QAGenerator(BaseGenerator):
             if _SKIP_QUESTION_RE.search(question):
                 continue
             if not passes_filters(text=answer, cfg=self.config.filters):
+                continue
+            if not await qa_judge(question=question, answer=answer, client=self.client):
                 continue
             records.append(
                 self._make_record(
