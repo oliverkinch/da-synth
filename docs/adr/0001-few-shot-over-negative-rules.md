@@ -1,6 +1,6 @@
 # ADR 0001 — Steer generation quality through few-shot examples, not negative rules
 
-**Status**: Accepted
+**Status**: Superseded — few-shot injection removed entirely; golden examples now live only in the style doc for human alignment. See conversation from 2026-06-01.
 
 ## Context
 

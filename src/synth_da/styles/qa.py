@@ -1,19 +1,16 @@
-"""QA generator — two-step: extract general-knowledge fact, then generate Q+A."""
+"""QA generator — single LLM call: extract general-knowledge fact and generate Q+A."""
 
 from __future__ import annotations
 
 import json
 import random
-from pathlib import Path
 from typing import Any
 
 from synth_da.client import GenerationClient, Message
 from synth_da.config import DatasetConfig
 from synth_da.filters import passes_filters
-from synth_da.personas import persona_to_prompt, sample_persona
+from synth_da.personas import sample_persona
 from synth_da.styles.base import BaseGenerator
-
-_EXAMPLES_DIR = Path(__file__).parent.parent.parent.parent / "assets" / "qa_examples"
 
 _SYSTEM_PROMPTS = [
     "Du er en hjælpsom assistent. Svar altid på dansk.",
@@ -21,37 +18,28 @@ _SYSTEM_PROMPTS = [
     "Svar på brugerens spørgsmål på dansk.",
 ]
 
-_EXTRACT_FACT_PROMPT = """\
-Find det bedste alment kendte faktum fra teksten. \
-Returner som JSON-streng, eller null hvis ingen kvalificerer.
+_PROMPT = """\
+Find det bedste alment kendte faktum fra teksten.
+{persona_note}Genér et naturligt, åbent dansk spørgsmål som faktaet besvarer.
+Faktaet er svaret — det må ikke fremgå af spørgsmålet.
+Returner som JSON eller null.
+
+{{"question": "Hvornår fik kvinder stemmeret i Danmark?", "answer": "Ved grundlovsændringen i 1915."}}
 
 {text}"""
 
-_GENERATE_QA_PROMPT = """\
-Fakta: {fact}
-{persona_note}
-Genér ét naturligt, åbent dansk spørgsmål og svar baseret på faktaet.
 
-SPØRGSMÅL: {example_question}
-SVAR: {example_answer}
-
-SPØRGSMÅL: <spørgsmål>
-SVAR: <svar>"""
-
-
-def _load_examples() -> list[dict[str, str]]:
-    examples = []
-    for path in sorted(_EXAMPLES_DIR.glob("*.json")):
-        data = json.loads(path.read_text(encoding="utf-8"))
-        msgs = data.get("messages", [])
-        q = next((m["content"] for m in msgs if m["role"] == "user"), None)
-        a = next((m["content"] for m in msgs if m["role"] == "assistant"), None)
-        if q and a:
-            examples.append({"question": q, "answer": a})
-    return examples
-
-
-_EXAMPLES = _load_examples()
+def _build_persona_note(persona: dict[str, Any]) -> str:
+    parts = []
+    if age := persona.get("age"):
+        parts.append(f"{age} år")
+    desc = str(persona.get("persona", "")).strip()
+    header = f"[{', '.join(parts)}]" if parts else ""
+    profile = f"{header} {desc}".strip() if header else desc
+    return (
+        f"Lad personaprofilen påvirke spørgsmålets tone og register"
+        f" — nævn ikke personaen eksplicit.\n{profile}\n"
+    )
 
 
 class QAGenerator(BaseGenerator):
@@ -68,16 +56,10 @@ class QAGenerator(BaseGenerator):
         judge: bool = False,
     ) -> list[dict[str, Any]]:
         persona = sample_persona() if self.config.persona_sampling else None
-        persona_text = persona_to_prompt(persona=persona) if persona else None
 
         text = self.config.render_text(row=row)
-        fact = await self._extract_fact(text=text)
-        if not fact:
-            return []
-
-        try:
-            messages = await self._generate_qa(fact=fact, persona_text=persona_text)
-        except ValueError:
+        messages = await self._generate_qa(text=text, persona=persona)
+        if messages is None:
             return []
 
         if not passes_filters(messages=messages, cfg=self.config.filters):
@@ -100,55 +82,30 @@ class QAGenerator(BaseGenerator):
             )
         ]
 
-    async def _extract_fact(self, text: str) -> str | None:
-        prompt = _EXTRACT_FACT_PROMPT.format(text=text[:4000])
-        raw = await self.client.generate(
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-        )
-        try:
-            value = json.loads(raw)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-        except (json.JSONDecodeError, ValueError):
-            pass
-        return None
+    async def _generate_qa(self, text: str, persona: dict[str, Any] | None) -> list[Message] | None:
+        persona_note = _build_persona_note(persona) if persona else ""
 
-    async def _generate_qa(self, fact: str, persona_text: str | None) -> list[Message]:
-        example = random.choice(_EXAMPLES)
-        persona_note = ""
-        if persona_text:
-            persona_note = (
-                f"\nFormulér spørgsmålet som om det stilles af en person med denne profil:\n"
-                f"{persona_text}\n"
-            )
-
-        prompt = _GENERATE_QA_PROMPT.format(
-            fact=fact,
-            persona_note=persona_note,
-            example_question=example["question"],
-            example_answer=example["answer"],
-        )
+        prompt = _PROMPT.format(persona_note=persona_note, text=text[:4000])
         raw = await self.client.generate(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.9,
         )
-        question, answer = _parse_qa(raw=raw)
+
+        try:
+            value = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return None
+
+        if not isinstance(value, dict):
+            return None
+
+        question = value.get("question", "").strip()
+        answer = value.get("answer", "").strip()
+        if not question or not answer:
+            return None
+
         system_msgs = self._maybe_system_prompt(content=random.choice(_SYSTEM_PROMPTS))
         return system_msgs + [
             {"role": "user", "content": question},
             {"role": "assistant", "content": answer},
         ]
-
-
-def _parse_qa(raw: str) -> tuple[str, str]:
-    question = ""
-    answer = ""
-    for line in raw.splitlines():
-        if line.startswith("SPØRGSMÅL:"):
-            question = line.removeprefix("SPØRGSMÅL:").strip()
-        elif line.startswith("SVAR:"):
-            answer = line.removeprefix("SVAR:").strip()
-    if not question or not answer:
-        raise ValueError(f"Could not parse QA from model output: {raw!r}")
-    return question, answer
