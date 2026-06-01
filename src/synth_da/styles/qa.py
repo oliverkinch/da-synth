@@ -8,7 +8,7 @@ from typing import Any
 
 from synth_da.client import GenerationClient, Message
 from synth_da.config import DatasetConfig
-from synth_da.filters import passes_filters
+from synth_da.filters import passes_filters, qa_judge
 from synth_da.personas import sample_persona
 from synth_da.styles.base import BaseGenerator
 
@@ -65,20 +65,14 @@ class QAGenerator(BaseGenerator):
         if not passes_filters(messages=messages, cfg=self.config.filters):
             return []
 
-        judge_score: int | None = None
-        judge_reason: str | None = None
-        if judge:
-            from synth_da.filters import judge_sample
-
-            judge_score, judge_reason = await judge_sample(messages=messages, client=self.client)
+        if not await qa_judge(messages=messages, client=self.client):
+            return []
 
         return [
             self._make_sample(
                 messages=messages,
                 seed_config=seed_config,
                 source_id=self._get_source_id(row=row),
-                judge_score=judge_score,
-                judge_reason=judge_reason,
             )
         ]
 

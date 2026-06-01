@@ -35,7 +35,6 @@ async def run_pipeline(
     config_path: Path,
     settings: Settings,
     concurrency: int = 20,
-    judge: bool = False,
 ) -> list[dict[str, Any]]:
     client = GenerationClient(settings=settings)
     generator = _make_generator(config=config, client=client)
@@ -75,7 +74,7 @@ async def run_pipeline(
 
             results = await asyncio.gather(
                 *[
-                    generator.generate_many(row=row, seed_config=seed_config_str, judge=judge)
+                    generator.generate_many(row=row, seed_config=seed_config_str)
                     for row in batch_rows
                 ],
                 return_exceptions=True,

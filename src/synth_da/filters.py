@@ -57,39 +57,32 @@ def passes_filters(messages: list[Message], cfg: FilterConfig) -> bool:
     return not cfg.language_check or is_danish(text=content)
 
 
-JUDGE_SYSTEM_PROMPT = """\
-Du er en kvalitetsdommer for træningsdata til sprogmodeller. \
-Du vurderer kvaliteten af et samtaleeksempel på dansk.
+_QA_JUDGE_PROMPT = """\
+Du er kvalitetsdommer for et knowledge-QA datasæt på dansk.
+Kildeteksten er ikke tilgængelig — spørgsmålet skal kunne besvares af en veltrænet sprogmodel fra dens træningsviden alene.
 
-Bedøm eksemplet på en skala fra 1 til 5 efter følgende kriterier:
-1 – Ubrugeligt: forkert sprog, meningsløst eller skadeligt indhold
-2 – Dårlig kvalitet: ukorrekt, vagt eller ufuldstændigt svar
-3 – Acceptabel: korrekt men banal, overfladisk eller unaturlig
-4 – God kvalitet: korrekt, naturligt dansk, relevant og informativt
-5 – Fremragende: præcist, velformuleret, naturligt og genuint nyttigt
+Spørgsmål: {question}
+Svar: {answer}
 
-Svar KUN med et JSON-objekt på formen:
-{"score": <1-5>, "reason": "<én sætning>"}
-"""
+Underkend eksemplet hvis:
+- Spørgsmålet kun kan besvares med adgang til en specifik kildetekst
+- Spørgsmålet indeholder eller parafraserer svaret
+
+Returner KUN JSON: {{"pass": true}} eller {{"pass": false}}"""
 
 
-async def judge_sample(
-    messages: list[Message],
-    client: GenerationClient,
-) -> tuple[int, str]:
-    from synth_da.client import GenerationClient  # local import to avoid circular at runtime
-
-    assert isinstance(client, GenerationClient)
-
-    prompt = [
-        {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
-        {"role": "user", "content": f"Eksempel:\n\n{messages}"},
-    ]
-    raw = await client.generate(messages=prompt, temperature=0.0, max_tokens=128)
+async def qa_judge(messages: list[Message], client: GenerationClient) -> bool:
     import json
 
+    question = next((m["content"] for m in messages if m["role"] == "user"), "")
+    answer = next((m["content"] for m in messages if m["role"] == "assistant"), "")
+    prompt = _QA_JUDGE_PROMPT.format(question=question, answer=answer)
+    raw = await client.generate(
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.0,
+        max_tokens=16,
+    )
     try:
-        data = json.loads(raw)
-        return int(data["score"]), str(data["reason"])
+        return bool(json.loads(raw).get("pass", False))
     except Exception:
-        return 0, "parse error"
+        return False

@@ -40,8 +40,6 @@ class BaseGenerator(ABC):
         messages: list[Message],
         seed_config: str,
         source_id: str | None = None,
-        judge_score: int | None = None,
-        judge_reason: str | None = None,
     ) -> dict[str, Any]:
         sample: dict[str, Any] = {
             "messages": messages,
@@ -52,9 +50,6 @@ class BaseGenerator(ABC):
         }
         if source_id is not None:
             sample["source_id"] = source_id
-        if judge_score is not None:
-            sample["judge_score"] = judge_score
-            sample["judge_reason"] = judge_reason
         return sample
 
     async def generate_many(
@@ -64,14 +59,13 @@ class BaseGenerator(ABC):
         judge: bool = False,
     ) -> list[dict[str, Any]]:
         """Generate zero or more samples from one seed row."""
-        result = await self.generate_one(row=row, seed_config=seed_config, judge=judge)
+        result = await self.generate_one(row=row, seed_config=seed_config)
         return [result] if result is not None else []
 
     async def generate_one(
         self,
         row: dict[str, Any],
         seed_config: str,
-        judge: bool = False,
     ) -> dict[str, Any] | None:
         """Generate a single sample from one seed row. Returns None if filtered out."""
         persona = sample_persona() if self.config.persona_sampling else None
@@ -86,17 +80,8 @@ class BaseGenerator(ABC):
         if not passes_filters(messages=messages, cfg=self.config.filters):
             return None
 
-        judge_score: int | None = None
-        judge_reason: str | None = None
-        if judge:
-            from synth_da.filters import judge_sample
-
-            judge_score, judge_reason = await judge_sample(messages=messages, client=self.client)
-
         return self._make_sample(
             messages=messages,
             seed_config=seed_config,
             source_id=self._get_source_id(row=row),
-            judge_score=judge_score,
-            judge_reason=judge_reason,
         )

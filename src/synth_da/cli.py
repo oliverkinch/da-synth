@@ -35,7 +35,6 @@ def generate(
         typer.Option("--style", "-s", help="Run all configs for this style (e.g. qa)."),
     ] = None,
     concurrency: Annotated[int, typer.Option(help="Number of concurrent LLM requests.")] = 20,
-    judge: Annotated[bool, typer.Option(help="Run LLM judge on each sample.")] = False,
     dry_run: Annotated[bool, typer.Option(help="Generate but do not push to Hub.")] = False,
     n_samples: Annotated[
         int | None,
@@ -89,7 +88,6 @@ def generate(
                 config_path=cfg_path,
                 settings=settings,
                 concurrency=concurrency,
-                judge=judge,
             )
         )
         console.print(f"[green]✓ Generated {len(samples)} samples[/green]")
