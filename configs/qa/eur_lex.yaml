@@ -1,8 +1,8 @@
 task: qa
 seed_dataset: oliverkinch/eur-lex
-seed_subset: da
+seed_subset: default
 seed_split: train
-text_column: da_document
+text_column: text_da
 n_samples: 2000
 persona_sampling: false
 system_prompt_rate: 0.5

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from typing import Annotated
 
@@ -36,6 +37,18 @@ def generate(
     concurrency: Annotated[int, typer.Option(help="Number of concurrent LLM requests.")] = 20,
     judge: Annotated[bool, typer.Option(help="Run LLM judge on each sample.")] = False,
     dry_run: Annotated[bool, typer.Option(help="Generate but do not push to Hub.")] = False,
+    n_samples: Annotated[
+        int | None,
+        typer.Option("--n-samples", "-n", help="Override n_samples from config."),
+    ] = None,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Write samples to a JSONL file instead of pushing to Hub (implies --dry-run).",
+        ),
+    ] = None,
 ) -> None:
     """Generate synthetic Danish instruction data and push to HuggingFace Hub."""
     if config is None and style is None:
@@ -65,6 +78,8 @@ def generate(
     for cfg_path in config_paths:
         console.rule(f"[bold]{cfg_path.stem}")
         cfg = load_config(cfg_path)
+        if n_samples is not None:
+            cfg = cfg.model_copy(update={"n_samples": n_samples})
 
         from synth_da.pipeline import push_to_hub, run_pipeline
 
@@ -73,7 +88,12 @@ def generate(
         )
         console.print(f"[green]✓ Generated {len(samples)} samples[/green]")
 
-        if not dry_run:
+        if output is not None:
+            with output.open("a", encoding="utf-8") as f:
+                for s in samples:
+                    f.write(json.dumps(s, ensure_ascii=False) + "\n")
+            console.print(f"[green]✓ Wrote {len(samples)} samples to {output}[/green]")
+        elif not dry_run:
             push_to_hub(samples, cfg.task.value, settings)
             console.print(f"[green]✓ Pushed to Hub — subset: {cfg.task.value}[/green]")
         else:

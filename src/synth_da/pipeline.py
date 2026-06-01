@@ -52,6 +52,7 @@ async def run_pipeline(
 
     samples: list[dict[str, Any]] = []
     errors = 0
+    _logged_errors: set[str] = set()
     seed_config_str = str(config_path)
 
     with Progress(
@@ -67,6 +68,7 @@ async def run_pipeline(
         )
 
         row_idx = 0
+        consecutive_error_batches = 0
         while len(samples) < config.n_samples and row_idx < len(rows) * 10:
             batch_rows = [rows[row_idx % len(rows)] for _ in range(concurrency)]
             row_idx += concurrency
@@ -76,15 +78,33 @@ async def run_pipeline(
                 return_exceptions=True,
             )
 
+            batch_had_success = False
             for r in results:
                 if isinstance(r, BaseException):
                     errors += 1
+                    key = type(r).__name__
+                    if key not in _logged_errors:
+                        _logged_errors.add(key)
+                        from rich.console import Console
+
+                        Console().print(f"[red]Error ({key}): {r}[/red]")
                     continue
+                batch_had_success = True
                 for sample in r:
                     samples.append(sample)
                     progress.advance(task_id)
                     if len(samples) >= config.n_samples:
                         break
+
+            if batch_had_success:
+                consecutive_error_batches = 0
+            else:
+                consecutive_error_batches += 1
+                if consecutive_error_batches >= 5:
+                    from rich.console import Console
+
+                    Console().print("[red]5 consecutive all-error batches — aborting.[/red]")
+                    break
 
     if errors:
         from rich.console import Console

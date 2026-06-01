@@ -64,8 +64,8 @@ Client: `openai` Python package.
 - `oliverkinch/danish_wikipedia` — 300k Danish Wikipedia articles (CC BY-SA 4.0, 2026-03-01 dump). Replaces the dynaword wikipedia subset.
 
 ### EU Legislation
-- `oliverkinch/eur-lex` — bilingual DA+EN EU legislative documents from CELLAR (CC BY 4.0). Used for translation and as general seed text. Replaces any separate "cellar" dataset.
-- `oliverkinch/eur-lex-sum` — 1,605 bilingual EU document + official summary pairs (CC BY 4.0). Primary seed for summarization. Fields: `celex_id`, `da_document`, `da_summary`, `en_document`, `en_summary`.
+- `oliverkinch/eur-lex` — bilingual DA+EN EU legislative documents from CELLAR (CC BY 4.0). Used for translation and as general seed text. Replaces any separate "cellar" dataset. Fields: `celex`, `resource_type`, `url`, `title_en`, `title_da`, `text_en`, `text_da`, `text_source_en`, `text_source_da`, `chars_en`, `chars_da`.
+- `oliverkinch/eur-lex-sum` — 1,605 bilingual EU document + official summary pairs (CC BY 4.0). Primary seed for summarization.
 
 ### Academic
 - `oliverkinch/doab-da` — 4 open-access Danish book chapters (CC BY 4.0). Fields: `text`, `title`, `authors`, `doi`, `url`, `date`, `license`.

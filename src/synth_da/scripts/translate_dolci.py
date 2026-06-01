@@ -10,9 +10,8 @@ from datasets import Dataset, load_dataset
 from rich.progress import MofNCompleteColumn, Progress, SpinnerColumn, TextColumn
 
 from synth_da.client import GenerationClient, Message
-from synth_da.config import Settings
+from synth_da.config import FilterConfig, Settings
 from synth_da.filters import is_danish, passes_filters
-from synth_da.config import FilterConfig
 
 # Subsets to skip — verifiable format constraints break on translation
 _SKIP_SOURCE_PATTERNS = ("Precise IF", "precise_if")
@@ -65,19 +64,23 @@ def _parse_translated(raw: str, original: list[dict[str, Any]]) -> list[Message]
 
     # Fallback: if parsing failed, return original structure with translated content
     if not result:
-        return [{"role": m["role"], "content": m.get("content") or ""} for m in original
-                if m["role"] in ("user", "assistant")]
+        return [
+            {"role": m["role"], "content": m.get("content") or ""}
+            for m in original
+            if m["role"] in ("user", "assistant")
+        ]
     return result
 
 
 async def run(n: int, settings: Settings, concurrency: int = 20, dry_run: bool = False) -> None:
     from rich.console import Console
+
     console = Console()
 
     client = GenerationClient(settings)
 
     ds = load_dataset("allenai/Dolci-Instruct-SFT", split="train", token=settings.hf_token)
-    rows: list[dict[str, Any]] = [r for r in ds if not _should_skip(r)]  # type: ignore[union-attr]
+    rows: list[dict[str, Any]] = [r for r in ds if not _should_skip(r)]
     random.shuffle(rows)
     rows = rows[:n]
 
@@ -92,14 +95,15 @@ async def run(n: int, settings: Settings, concurrency: int = 20, dry_run: bool =
             try:
                 messages: list[dict[str, Any]] = row.get("messages") or []
                 # Skip if already contains Danish (Aya subset)
-                first_content = next(
-                    (m.get("content") for m in messages if m.get("role") == "user"), ""
-                ) or ""
+                first_content = (
+                    next((m.get("content") for m in messages if m.get("role") == "user"), "") or ""
+                )
                 if is_danish(first_content):
                     return {
                         "messages": [
                             {"role": m["role"], "content": m.get("content") or ""}
-                            for m in messages if m["role"] in ("user", "assistant")
+                            for m in messages
+                            if m["role"] in ("user", "assistant")
                         ],
                         "source_dataset": row.get("source_dataset", ""),
                         "domain": row.get("domain", ""),
@@ -147,8 +151,8 @@ async def run(n: int, settings: Settings, concurrency: int = 20, dry_run: bool =
     console.print(f"[green]✓ Translated {len(results)} samples ({errors} skipped)[/green]")
 
     if not dry_run:
-        from synth_da.pipeline import HF_REPO, push_to_hub
-        from synth_da.config import Task
+        from synth_da.pipeline import HF_REPO
+
         # Push as a separate "translated" subset
         ds_out = Dataset.from_list(results)
         ds_out.push_to_hub(HF_REPO, config_name="translated", token=settings.hf_token)
