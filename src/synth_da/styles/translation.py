@@ -38,8 +38,8 @@ class TranslationGenerator(BaseGenerator):
         row: dict[str, Any],
         seed_config: str,
     ) -> list[dict[str, Any]]:
-        seed_text = self.config.render_text(row=row)
-        if not seed_text or not seed_text.strip():
+        seed_text = self.config.render_seed_text(row=row)
+        if seed_text is None:
             return []
 
         da_text = await self._generate_danish(seed_text=seed_text)
@@ -57,21 +57,19 @@ class TranslationGenerator(BaseGenerator):
             self._make_record(
                 fields={"da": da_text, "en": en_text},
                 seed_config=seed_config,
-                source_id=self._get_source_id(row=row),
+                row=row,
             )
         ]
 
     async def _generate_danish(self, seed_text: str) -> str:
-        safe_seed = seed_text[:4000].replace("{", "{{").replace("}", "}}")
-        prompt = _DA_GENERATION_PROMPT.format(seed_text=safe_seed)
+        prompt = self._fmt(_DA_GENERATION_PROMPT, seed_text=seed_text[:4000])
         return await self.client.generate(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.9,
         )
 
     async def _generate_english(self, da_text: str) -> str:
-        safe_da = da_text.replace("{", "{{").replace("}", "}}")
-        prompt = _EN_TRANSLATION_PROMPT.format(da_text=safe_da)
+        prompt = self._fmt(_EN_TRANSLATION_PROMPT, da_text=da_text)
         return await self.client.generate(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,

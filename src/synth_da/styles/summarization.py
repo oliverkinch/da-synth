@@ -36,10 +36,8 @@ class SummarizationGenerator(BaseGenerator):
         row: dict[str, Any],
         seed_config: str,
     ) -> list[dict[str, Any]]:
-        seed_text = self.config.render_text(row=row)
-        if not seed_text or not seed_text.strip():
-            return []
-        if self.config.max_seed_chars and len(seed_text) > self.config.max_seed_chars:
+        seed_text = self.config.render_seed_text(row=row)
+        if seed_text is None:
             return []
 
         document = await self._generate_document(seed_text=seed_text)
@@ -57,21 +55,19 @@ class SummarizationGenerator(BaseGenerator):
             self._make_record(
                 fields={"document": document, "summary": summary},
                 seed_config=seed_config,
-                source_id=self._get_source_id(row=row),
+                row=row,
             )
         ]
 
     async def _generate_document(self, seed_text: str) -> str:
-        safe_seed = seed_text.replace("{", "{{").replace("}", "}}")
-        prompt = _DOCUMENT_PROMPT.format(seed_text=safe_seed)
+        prompt = self._fmt(_DOCUMENT_PROMPT, seed_text=seed_text)
         return await self.client.generate(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.9,
         )
 
     async def _generate_summary(self, document: str) -> str:
-        safe_doc = document.replace("{", "{{").replace("}", "}}")
-        prompt = _SUMMARY_PROMPT.format(document=safe_doc)
+        prompt = self._fmt(_SUMMARY_PROMPT, document=document)
         return await self.client.generate(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,

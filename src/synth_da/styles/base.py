@@ -24,16 +24,18 @@ class BaseGenerator(ABC):
         """Generate zero or more records from one seed row."""
         ...
 
-    def _get_source_id(self, row: dict[str, Any]) -> str | None:
-        if self.config.source_id_column:
-            return str(row.get(self.config.source_id_column, "")) or None
-        return None
+    @staticmethod
+    def _fmt(template: str, **kwargs: str) -> str:
+        """Format a prompt template, escaping braces in all substituted values."""
+        return template.format(
+            **{k: v.replace("{", "{{").replace("}", "}}") for k, v in kwargs.items()}
+        )
 
     def _make_record(
         self,
         fields: dict[str, Any],
         seed_config: str,
-        source_id: str | None = None,
+        row: dict[str, Any],
     ) -> dict[str, Any]:
         record: dict[str, Any] = {
             **fields,
@@ -41,6 +43,8 @@ class BaseGenerator(ABC):
             "seed_dataset": self.config.seed_dataset,
             "seed_config": seed_config,
         }
-        if source_id is not None:
-            record["source_id"] = source_id
+        if self.config.source_id_column:
+            source_id = str(row.get(self.config.source_id_column, "")) or None
+            if source_id is not None:
+                record["source_id"] = source_id
         return record

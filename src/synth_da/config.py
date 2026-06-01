@@ -57,6 +57,15 @@ class DatasetConfig(BaseModel):
             return str(row.get(self.text_column) or "")
         raise ValueError("No text column mapping configured")
 
+    def render_seed_text(self, row: dict[str, Any]) -> str | None:
+        """Render and validate seed text; return None if the row should be skipped."""
+        text = self.render_text(row=row)
+        if not text or not text.strip():
+            return None
+        if self.max_seed_chars and len(text) > self.max_seed_chars:
+            return None
+        return text
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

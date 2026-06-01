@@ -46,8 +46,8 @@ class QAGenerator(BaseGenerator):
     ) -> list[dict[str, Any]]:
         persona = sample_persona() if self.config.persona_sampling else None
 
-        text = self.config.render_text(row=row)
-        if not text or not text.strip():
+        text = self.config.render_seed_text(row=row)
+        if text is None:
             return []
 
         result = await self._generate_qa(text=text, persona=persona)
@@ -66,7 +66,7 @@ class QAGenerator(BaseGenerator):
             self._make_record(
                 fields={"question": question, "answer": answer},
                 seed_config=seed_config,
-                source_id=self._get_source_id(row=row),
+                row=row,
             )
         ]
 
@@ -74,10 +74,7 @@ class QAGenerator(BaseGenerator):
         self, text: str, persona: dict[str, Any] | None
     ) -> tuple[str, str] | None:
         persona_note = _build_persona_note(persona=persona) if persona else ""
-
-        safe_text = text[:4000].replace("{", "{{").replace("}", "}}")
-        safe_persona = persona_note.replace("{", "{{").replace("}", "}}")
-        prompt = _PROMPT.format(persona_note=safe_persona, text=safe_text)
+        prompt = self._fmt(_PROMPT, persona_note=persona_note, text=text[:4000])
         raw = await self.client.generate(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.9,
