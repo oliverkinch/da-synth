@@ -18,6 +18,9 @@ Optionally includes a system message as the first turn.
 **Style**
 A task category defining the type of instruction-following a sample trains. Each style has its own generation pipeline, prompt template, quality criteria, and seed dataset configuration(s). Active styles: `qa`, `summarization`, `translation`, `grounded`.
 
+**General Knowledge Fact**
+A fact extracted from a seed document that a competent Danish speaker could plausibly encounter in mainstream media, school education, or everyday life — and that a language model is therefore likely to have learned reliably enough to answer correctly without the source text present. The `qa` style exclusively targets general knowledge facts: seed text is used at generation time to identify eligible facts and produce naturalistic questions, but neither the source text nor the fact itself appears in the final sample. Facts that are too domain-specific, too technical, or too obscure to pass this bar are discarded rather than used as generation seeds.
+
 **Style Doc**
 A per-style markdown document (`docs/styles/<style>.md`). Contains: definition, quality criteria, known pitfalls, and golden example samples. Used for human review and the `/dataset_review` skill — never injected into generation prompts.
 

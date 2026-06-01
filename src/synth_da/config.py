@@ -46,6 +46,7 @@ class DatasetConfig(BaseModel):
     n_samples: int = 1000
     persona_sampling: bool = True
     system_prompt_rate: Annotated[float, Field(ge=0.0, le=1.0)] = 0.5
+    max_facts_per_doc: Annotated[int, Field(ge=1, le=10)] = 3
 
     filters: FilterConfig = Field(default_factory=FilterConfig)
 

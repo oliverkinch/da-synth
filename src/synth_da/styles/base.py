@@ -49,6 +49,16 @@ class BaseGenerator(ABC):
             sample["judge_reason"] = judge_reason
         return sample
 
+    async def generate_many(
+        self,
+        row: dict[str, Any],
+        seed_config: str,
+        judge: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Generate zero or more samples from one seed row."""
+        result = await self.generate_one(row, seed_config, judge=judge)
+        return [result] if result is not None else []
+
     async def generate_one(
         self,
         row: dict[str, Any],

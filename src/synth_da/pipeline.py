@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from datasets import Dataset, load_dataset
-from huggingface_hub import HfApi
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn
 
 from synth_da.client import GenerationClient
@@ -73,26 +72,23 @@ async def run_pipeline(
             row_idx += concurrency
 
             results = await asyncio.gather(
-                *[
-                    generator.generate_one(row, seed_config_str, judge=judge)
-                    for row in batch_rows
-                ],
+                *[generator.generate_many(row, seed_config_str, judge=judge) for row in batch_rows],
                 return_exceptions=True,
             )
 
             for r in results:
-                if isinstance(r, Exception):
+                if isinstance(r, BaseException):
                     errors += 1
                     continue
-                if r is None:
-                    continue
-                samples.append(r)
-                progress.advance(task_id)
-                if len(samples) >= config.n_samples:
-                    break
+                for sample in r:
+                    samples.append(sample)
+                    progress.advance(task_id)
+                    if len(samples) >= config.n_samples:
+                        break
 
     if errors:
         from rich.console import Console
+
         Console().print(f"[yellow]⚠ {errors} generation errors (skipped)[/yellow]")
 
     return samples[: config.n_samples]
@@ -105,8 +101,6 @@ def push_to_hub(
     repo_id: str = HF_REPO,
 ) -> None:
     """Append samples to the Hub dataset subset for this task."""
-    api = HfApi(token=settings.hf_token)
-
     try:
         existing = load_dataset(repo_id, task, split="train", token=settings.hf_token)
         combined = list(existing) + samples

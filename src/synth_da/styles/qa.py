@@ -1,28 +1,67 @@
-"""QA generator."""
+"""QA generator — two-step: extract general-knowledge facts, then generate Q+A per fact."""
 
 from __future__ import annotations
 
+import json
 import random
 from typing import Any
 
 from synth_da.client import GenerationClient, Message
 from synth_da.config import DatasetConfig
+from synth_da.filters import passes_filters
+from synth_da.personas import persona_to_prompt, sample_persona
 from synth_da.styles.base import BaseGenerator
 
 _SYSTEM_PROMPTS = [
     "Du er en hjælpsom assistent. Svar altid på dansk.",
     "Du er en vidende assistent der svarer præcist og kortfattet på dansk.",
-    "Besvar brugerens spørgsmål på dansk baseret på den givne tekst.",
+    "Svar på brugerens spørgsmål på dansk.",
 ]
 
-_QUALITY_CRITERIA = """\
-Et højkvalitets QA-eksempel:
-- Stiller et naturligt, konkret spørgsmål som en person faktisk ville stille
-- Spørgsmålet afslører ikke svaret i sin formulering
-- Svaret er korrekt, præcist og direkte — ingen unødvendig omformulering af spørgsmålet
-- Svaret er udelukkende baseret på den givne tekst (ved grundet QA)
-- Sproget er naturligt dansk
-"""
+_EXTRACT_FACTS_PROMPT = """\
+Læs teksten herunder og identificér op til {max_facts} fakta der kan betragtes som \
+almen viden — fakta som en kompetent dansker sandsynligvis ville støde på i dagspressen, \
+i skolen eller i hverdagen, og som en sprogmodel med rimelighed kan forventes at kende.
+
+Returner KUN et JSON-array af korte faktasætninger på dansk. \
+Hvis teksten ikke indeholder fakta der lever op til dette, returneres et tomt array.
+
+Eksempler på almen viden:
+- "Folketinget har 179 medlemmer"
+- "Danmark er et konstitutionelt monarki"
+
+Eksempler på fakta der IKKE er almen viden:
+- Meget specifikke juridiske eller tekniske detaljer
+- Niche-fagtermer som kun eksperter kender
+- Obskure enkeltoplysninger uden bredere relevans
+
+Tekst:
+---
+{text}
+---
+
+Svar udelukkende med et JSON-array, f.eks.: ["fakta 1", "fakta 2"] eller []"""
+
+_GENERATE_QA_PROMPT = """\
+Du skal generere ét spørgsmål-og-svar-par på dansk baseret på faktaoplysningen herunder.
+
+Fakta: {fact}
+
+Kontekst (kun til reference — må ikke citeres i svaret):
+---
+{text}
+---
+{persona_note}
+Regler:
+- Spørgsmålet må ikke indeholde svaret eller en omformulering af det
+- Spørgsmålet skal lyde naturligt og uformelt — som noget en rigtig person ville skrive \
+i en chat (hverdagslig sprogbrug, blandet register er fint)
+- Svaret skal være korrekt, kortfattet og på dansk
+- Svaret må ikke referere til "teksten" eller "konteksten"
+
+Svar i præcis dette format:
+SPØRGSMÅL: <spørgsmål>
+SVAR: <svar>"""
 
 
 class QAGenerator(BaseGenerator):
@@ -30,34 +69,78 @@ class QAGenerator(BaseGenerator):
         super().__init__(config, client)
 
     async def build_prompt(self, row: dict[str, Any], persona_text: str | None) -> list[Message]:
-        text = self.config.render_text(row)
+        raise NotImplementedError("QAGenerator uses generate_many directly")
 
+    async def generate_many(
+        self,
+        row: dict[str, Any],
+        seed_config: str,
+        judge: bool = False,
+    ) -> list[dict[str, Any]]:
+        persona = sample_persona() if self.config.persona_sampling else None
+        persona_text = persona_to_prompt(persona) if persona else None
+
+        text = self.config.render_text(row)
+        facts = await self._extract_facts(text)
+        if not facts:
+            return []
+
+        samples: list[dict[str, Any]] = []
+        for fact in facts:
+            try:
+                messages = await self._generate_qa(text, fact, persona_text)
+            except ValueError:
+                continue
+
+            if not passes_filters(messages, self.config.filters):
+                continue
+
+            judge_score: int | None = None
+            judge_reason: str | None = None
+            if judge:
+                from synth_da.filters import judge_sample
+
+                judge_score, judge_reason = await judge_sample(messages, self.client)
+
+            samples.append(self._make_sample(messages, seed_config, judge_score, judge_reason))
+
+        return samples
+
+    async def _extract_facts(self, text: str) -> list[str]:
+        prompt = _EXTRACT_FACTS_PROMPT.format(
+            max_facts=self.config.max_facts_per_doc,
+            text=text[:4000],
+        )
+        raw = await self.client.generate(
+            [{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+        try:
+            facts = json.loads(raw)
+            if isinstance(facts, list):
+                return [str(f) for f in facts if f][: self.config.max_facts_per_doc]
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return []
+
+    async def _generate_qa(self, text: str, fact: str, persona_text: str | None) -> list[Message]:
         persona_note = ""
         if persona_text:
-            persona_note = f"\n\nFormulér spørgsmålet som om det stilles af en person med følgende profil:\n{persona_text}"
+            persona_note = (
+                f"\nFormulér spørgsmålet som om det stilles af en person med denne profil:\n"
+                f"{persona_text}\n"
+            )
 
-        generation_prompt = f"""\
-Du skal generere ét højkvalitets spørgsmål-og-svar-par på dansk baseret på teksten herunder.
-
-{_QUALITY_CRITERIA}
-{persona_note}
-
-Tekst:
----
-{text[:4000]}
----
-
-Svar i præcis dette format:
-SPØRGSMÅL: <spørgsmål>
-SVAR: <svar>"""
-
-        generation_messages: list[Message] = [
-            {"role": "user", "content": generation_prompt},
-        ]
-
-        raw = await self.client.generate(generation_messages, temperature=0.9)
+        prompt = _GENERATE_QA_PROMPT.format(
+            fact=fact,
+            text=text[:4000],
+            persona_note=persona_note,
+        )
+        raw = await self.client.generate(
+            [{"role": "user", "content": prompt}],
+            temperature=0.9,
+        )
         question, answer = _parse_qa(raw)
-
         system_msgs = self._maybe_system_prompt(random.choice(_SYSTEM_PROMPTS))
         return system_msgs + [
             {"role": "user", "content": question},
