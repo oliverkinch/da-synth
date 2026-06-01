@@ -29,7 +29,7 @@ class GenerationClient:
     ) -> str:
         response = await self._client.chat.completions.create(
             model=self.model,
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]
             temperature=temperature,
             max_tokens=max_tokens,
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},

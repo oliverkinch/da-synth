@@ -58,7 +58,7 @@ class DatasetConfig(BaseModel):
         raise ValueError("No text column mapping configured")
 
 
-class Settings(BaseSettings):  # type: ignore[misc]
+class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     openai_base_url: str = "https://inference.alexandra.dk/v1"

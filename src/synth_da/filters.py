@@ -12,18 +12,9 @@ from synth_da.config import FilterConfig
 if TYPE_CHECKING:
     from synth_da.client import GenerationClient
 
-Message = dict[str, str]
-
 _detector = LanguageDetectorBuilder.from_languages(
     Language.DANISH, Language.ENGLISH, Language.SWEDISH, Language.BOKMAL, Language.NYNORSK
 ).build()
-
-
-def _assistant_content(messages: list[Message]) -> str:
-    for m in reversed(messages):
-        if m["role"] == "assistant":
-            return m["content"]
-    return ""
 
 
 def _token_count(text: str) -> int:
@@ -46,15 +37,14 @@ def is_danish(text: str) -> bool:
     return bool(detected == Language.DANISH)
 
 
-def passes_filters(messages: list[Message], cfg: FilterConfig) -> bool:
-    content = _assistant_content(messages=messages)
-    if not content:
+def passes_filters(text: str, cfg: FilterConfig) -> bool:
+    if not text:
         return False
-    if _token_count(text=content) < cfg.min_assistant_tokens:
+    if _token_count(text=text) < cfg.min_assistant_tokens:
         return False
-    if _repetition_ratio(text=content) > cfg.max_repetition_ratio:
+    if _repetition_ratio(text=text) > cfg.max_repetition_ratio:
         return False
-    return not cfg.language_check or is_danish(text=content)
+    return not cfg.language_check or is_danish(text=text)
 
 
 _QA_JUDGE_PROMPT = """\
@@ -73,11 +63,9 @@ Underkend eksemplet hvis:
 Returner KUN JSON: {{"pass": true}} eller {{"pass": false}}"""
 
 
-async def qa_judge(messages: list[Message], client: GenerationClient) -> bool:
+async def qa_judge(question: str, answer: str, client: GenerationClient) -> bool:
     import json
 
-    question = next((m["content"] for m in messages if m["role"] == "user"), "")
-    answer = next((m["content"] for m in messages if m["role"] == "assistant"), "")
     prompt = _QA_JUDGE_PROMPT.format(question=question, answer=answer)
     raw = await client.generate(
         messages=[{"role": "user", "content": prompt}],

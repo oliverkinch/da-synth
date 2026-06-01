@@ -24,7 +24,7 @@ def _load_settings() -> Settings:
     return Settings()  # reads .env automatically
 
 
-@app.command()  # type: ignore[misc]
+@app.command()
 def generate(
     config: Annotated[
         Path | None,
@@ -110,13 +110,13 @@ def generate(
                     f.write(json.dumps(s, ensure_ascii=False) + "\n")
             console.print(f"[green]✓ Wrote {len(samples)} samples to {output}[/green]")
         elif not dry_run:
-            push_to_hub(samples=samples, task=cfg.task.value, settings=settings)
+            push_to_hub(records=samples, task=cfg.task, settings=settings)
             console.print(f"[green]✓ Pushed to Hub — subset: {cfg.task.value}[/green]")
         else:
             console.print("[yellow]Dry run — skipping Hub push.[/yellow]")
 
 
-@app.command()  # type: ignore[misc]
+@app.command()
 def generate_personas(
     n: Annotated[int, typer.Option(help="Number of personas to generate.")] = 5000,
     dry_run: Annotated[bool, typer.Option(help="Print personas but do not save.")] = False,
@@ -128,18 +128,6 @@ def generate_personas(
     from synth_da.scripts.generate_personas import run
 
     asyncio.run(run(n=n, settings=_load_settings(), dry_run=dry_run, append=append))
-
-
-@app.command()  # type: ignore[misc]
-def translate_nemotron(
-    n: Annotated[int, typer.Option(help="Number of samples to translate.")] = 10000,
-    concurrency: Annotated[int, typer.Option(help="Concurrent LLM requests.")] = 20,
-    dry_run: Annotated[bool, typer.Option(help="Translate but do not push to Hub.")] = False,
-) -> None:
-    """Translate a subset of allenai/Dolci-Instruct-SFT to Danish and push to Hub."""
-    from synth_da.scripts.translate_dolci import run
-
-    asyncio.run(run(n=n, settings=_load_settings(), concurrency=concurrency, dry_run=dry_run))
 
 
 if __name__ == "__main__":

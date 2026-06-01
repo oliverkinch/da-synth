@@ -6,10 +6,8 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import Any
 
-from synth_da.client import GenerationClient, Message
+from synth_da.client import GenerationClient
 from synth_da.config import DatasetConfig
-from synth_da.filters import passes_filters
-from synth_da.personas import persona_to_prompt, sample_persona
 
 
 class BaseGenerator(ABC):
@@ -18,8 +16,12 @@ class BaseGenerator(ABC):
         self.client = client
 
     @abstractmethod
-    async def build_prompt(self, row: dict[str, Any], persona_text: str | None) -> list[Message]:
-        """Build the generation prompt from a seed row."""
+    async def generate_many(
+        self,
+        row: dict[str, Any],
+        seed_config: str,
+    ) -> list[dict[str, Any]]:
+        """Generate zero or more records from one seed row."""
         ...
 
     def _get_source_id(self, row: dict[str, Any]) -> str | None:
@@ -27,52 +29,18 @@ class BaseGenerator(ABC):
             return str(row.get(self.config.source_id_column, "")) or None
         return None
 
-    def _make_sample(
+    def _make_record(
         self,
-        messages: list[Message],
+        fields: dict[str, Any],
         seed_config: str,
         source_id: str | None = None,
     ) -> dict[str, Any]:
-        sample: dict[str, Any] = {
-            "messages": messages,
+        record: dict[str, Any] = {
+            **fields,
             "run_id": str(uuid.uuid4()),
-            "style": self.config.task.value,
             "seed_dataset": self.config.seed_dataset,
             "seed_config": seed_config,
         }
         if source_id is not None:
-            sample["source_id"] = source_id
-        return sample
-
-    async def generate_many(
-        self,
-        row: dict[str, Any],
-        seed_config: str,
-    ) -> list[dict[str, Any]]:
-        """Generate zero or more samples from one seed row."""
-        result = await self.generate_one(row=row, seed_config=seed_config)
-        return [result] if result is not None else []
-
-    async def generate_one(
-        self,
-        row: dict[str, Any],
-        seed_config: str,
-    ) -> dict[str, Any] | None:
-        """Generate a single sample from one seed row. Returns None if filtered out."""
-        persona = sample_persona() if self.config.persona_sampling else None
-        persona_text = persona_to_prompt(persona=persona) if persona else None
-
-        messages = await self.build_prompt(row=row, persona_text=persona_text)
-
-        if not messages or messages[-1]["role"] != "assistant":
-            response = await self.client.generate(messages=messages)
-            messages = messages + [{"role": "assistant", "content": response}]
-
-        if not passes_filters(messages=messages, cfg=self.config.filters):
-            return None
-
-        return self._make_sample(
-            messages=messages,
-            seed_config=seed_config,
-            source_id=self._get_source_id(row=row),
-        )
+            record["source_id"] = source_id
+        return record

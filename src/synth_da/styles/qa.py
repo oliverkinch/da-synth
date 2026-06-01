@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from synth_da.client import GenerationClient, Message
+from synth_da.client import GenerationClient
 from synth_da.config import DatasetConfig
 from synth_da.filters import passes_filters, qa_judge
 from synth_da.personas import sample_persona
@@ -49,9 +49,6 @@ class QAGenerator(BaseGenerator):
     def __init__(self, config: DatasetConfig, client: GenerationClient) -> None:
         super().__init__(config=config, client=client)
 
-    async def build_prompt(self, row: dict[str, Any], persona_text: str | None) -> list[Message]:
-        raise NotImplementedError("QAGenerator uses generate_many directly")
-
     async def generate_many(
         self,
         row: dict[str, Any],
@@ -62,26 +59,31 @@ class QAGenerator(BaseGenerator):
         text = self.config.render_text(row=row)
         if not text or not text.strip():
             return []
-        messages = await self._generate_qa(text=text, persona=persona)
-        if messages is None:
+
+        result = await self._generate_qa(text=text, persona=persona)
+        if result is None:
             return []
 
-        if not passes_filters(messages=messages, cfg=self.config.filters):
+        question, answer = result
+
+        if not passes_filters(text=answer, cfg=self.config.filters):
             return []
 
-        if not await qa_judge(messages=messages, client=self.client):
+        if not await qa_judge(question=question, answer=answer, client=self.client):
             return []
 
         return [
-            self._make_sample(
-                messages=messages,
+            self._make_record(
+                fields={"question": question, "answer": answer},
                 seed_config=seed_config,
                 source_id=self._get_source_id(row=row),
             )
         ]
 
-    async def _generate_qa(self, text: str, persona: dict[str, Any] | None) -> list[Message] | None:
-        persona_note = _build_persona_note(persona) if persona else ""
+    async def _generate_qa(
+        self, text: str, persona: dict[str, Any] | None
+    ) -> tuple[str, str] | None:
+        persona_note = _build_persona_note(persona=persona) if persona else ""
 
         safe_text = text[:4000].replace("{", "{{").replace("}", "}}")
         safe_persona = persona_note.replace("{", "{{").replace("}", "}}")
@@ -104,7 +106,4 @@ class QAGenerator(BaseGenerator):
         if not question or not answer:
             return None
 
-        return [
-            {"role": "user", "content": question},
-            {"role": "assistant", "content": answer},
-        ]
+        return question, answer

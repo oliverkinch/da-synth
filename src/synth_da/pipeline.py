@@ -17,7 +17,11 @@ from synth_da.styles.qa import QAGenerator
 from synth_da.styles.summarization import SummarizationGenerator
 from synth_da.styles.translation import TranslationGenerator
 
-HF_REPO = "oliverkinch/danish-sft"
+_HF_REPOS: dict[Task, str] = {
+    Task.QA: "oliverkinch/danish-qa",
+    Task.SUMMARIZATION: "oliverkinch/danish-summarization",
+    Task.TRANSLATION: "oliverkinch/danish-translation",
+}
 
 
 def _make_generator(config: DatasetConfig, client: GenerationClient) -> BaseGenerator:
@@ -132,19 +136,19 @@ async def run_pipeline(
 
 
 def push_to_hub(
-    samples: list[dict[str, Any]],
-    task: str,
+    records: list[dict[str, Any]],
+    task: Task,
     settings: Settings,
-    repo_id: str = HF_REPO,
 ) -> None:
-    """Append samples to the Hub dataset subset for this task."""
+    """Append records to the Hub dataset for this task type."""
     from datasets.exceptions import DatasetNotFoundError
 
+    repo_id = _HF_REPOS[task]
     try:
-        existing = load_dataset(repo_id, task, split="train", token=settings.hf_token)
-        combined = list(existing) + samples
+        existing = load_dataset(repo_id, split="train", token=settings.hf_token)
+        combined = list(existing) + records
     except DatasetNotFoundError:
-        combined = samples
+        combined = records
 
     ds = Dataset.from_list(combined)
-    ds.push_to_hub(repo_id, config_name=task, token=settings.hf_token)
+    ds.push_to_hub(repo_id, token=settings.hf_token)
