@@ -22,47 +22,19 @@ _SYSTEM_PROMPTS = [
 ]
 
 _EXTRACT_FACT_PROMPT = """\
-Læs teksten herunder og identificér det bedste enkeltfaktum der kan betragtes som \
-almen viden — noget en kompetent dansker sandsynligvis ville støde på i dagspressen, \
-i skolen eller i hverdagen, og som en sprogmodel med rimelighed kan forventes at kende.
+Find det bedste alment kendte faktum fra teksten. \
+Returner som JSON-streng, eller null hvis ingen kvalificerer.
 
-Returner KUN én kort faktasætning på dansk som en JSON-streng. \
-Hvis teksten ikke indeholder fakta der lever op til dette, returneres null.
-
-Eksempler på almen viden:
-- "Folketinget har 179 medlemmer"
-- "Danmark er et konstitutionelt monarki"
-
-Eksempler på fakta der IKKE er almen viden:
-- Meget specifikke juridiske eller tekniske detaljer
-- Niche-fagtermer som kun eksperter kender
-- Obskure enkeltoplysninger uden bredere relevans
-
-Tekst:
----
-{text}
----
-
-Svar udelukkende med en JSON-streng eller null, f.eks.: "Danmark er et monarki" eller null"""
+{text}"""
 
 _GENERATE_QA_PROMPT = """\
-Du skal generere ét spørgsmål-og-svar-par på dansk baseret på faktaoplysningen herunder.
-
 Fakta: {fact}
-
-Kontekst (kun til reference — må ikke citeres i svaret):
----
-{text}
----
 {persona_note}
-Spørgsmålet skal være ægte åbent — brugeren kender ikke svaret og spørger fordi de vil vide det. \
-Spørgsmålet skal lyde naturligt og uformelt. Svaret skal være korrekt og kortfattet.
+Genér ét naturligt, åbent dansk spørgsmål og svar baseret på faktaet.
 
-Eksempel på et godt spørgsmål-og-svar-par:
 SPØRGSMÅL: {example_question}
 SVAR: {example_answer}
 
-Svar i præcis dette format:
 SPØRGSMÅL: <spørgsmål>
 SVAR: <svar>"""
 
@@ -104,7 +76,7 @@ class QAGenerator(BaseGenerator):
             return []
 
         try:
-            messages = await self._generate_qa(text, fact, persona_text)
+            messages = await self._generate_qa(fact, persona_text)
         except ValueError:
             return []
 
@@ -138,7 +110,7 @@ class QAGenerator(BaseGenerator):
             pass
         return None
 
-    async def _generate_qa(self, text: str, fact: str, persona_text: str | None) -> list[Message]:
+    async def _generate_qa(self, fact: str, persona_text: str | None) -> list[Message]:
         example = random.choice(_EXAMPLES)
         persona_note = ""
         if persona_text:
@@ -149,7 +121,6 @@ class QAGenerator(BaseGenerator):
 
         prompt = _GENERATE_QA_PROMPT.format(
             fact=fact,
-            text=text[:4000],
             persona_note=persona_note,
             example_question=example["question"],
             example_answer=example["answer"],
