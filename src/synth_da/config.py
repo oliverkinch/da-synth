@@ -35,7 +35,6 @@ class DatasetConfig(BaseModel):
     text_template: str | None = None
 
     n_samples: int = 1000
-    persona_sampling: bool = False
     max_seed_chars: int | None = None
     source_id_column: str | None = None
 
@@ -47,8 +46,6 @@ class DatasetConfig(BaseModel):
             raise ValueError("Dataset configs require text_column or text_template")
         if self.text_column and self.text_template:
             raise ValueError("Specify either text_column or text_template, not both")
-        if self.persona_sampling and self.task != Task.QA:
-            raise ValueError("persona_sampling is only supported for task=qa")
         return self
 
     def render_text(self, row: dict[str, Any]) -> str:
