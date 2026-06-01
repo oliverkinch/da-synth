@@ -53,7 +53,6 @@ class QAGenerator(BaseGenerator):
         self,
         row: dict[str, Any],
         seed_config: str,
-        judge: bool = False,
     ) -> list[dict[str, Any]]:
         persona = sample_persona() if self.config.persona_sampling else None
 
@@ -79,7 +78,9 @@ class QAGenerator(BaseGenerator):
     async def _generate_qa(self, text: str, persona: dict[str, Any] | None) -> list[Message] | None:
         persona_note = _build_persona_note(persona) if persona else ""
 
-        prompt = _PROMPT.format(persona_note=persona_note, text=text[:4000])
+        safe_text = text[:4000].replace("{", "{{").replace("}", "}}")
+        safe_persona = persona_note.replace("{", "{{").replace("}", "}}")
+        prompt = _PROMPT.format(persona_note=safe_persona, text=safe_text)
         raw = await self.client.generate(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.9,

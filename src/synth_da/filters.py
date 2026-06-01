@@ -85,4 +85,7 @@ async def qa_judge(messages: list[Message], client: GenerationClient) -> bool:
     try:
         return bool(json.loads(raw).get("pass", False))
     except Exception:
+        import warnings
+
+        warnings.warn(f"qa_judge: could not parse response {raw!r:.80}", stacklevel=2)
         return False

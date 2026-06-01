@@ -47,10 +47,20 @@ async def run_pipeline(
         token=settings.hf_token,
     )
 
-    rows = list(ds)
+    all_rows = list(ds)
     if seen_ids is not None and config.source_id_column:
-        rows = [r for r in rows if str(r.get(config.source_id_column, "")) not in seen_ids]
+        rows = [r for r in all_rows if str(r.get(config.source_id_column, "")) not in seen_ids]
+    else:
+        rows = all_rows
     random.shuffle(rows)
+
+    if not rows:
+        from rich.console import Console
+
+        Console().print(
+            "[yellow]No unseen rows after deduplication — nothing to generate.[/yellow]"
+        )
+        return []
 
     samples: list[dict[str, Any]] = []
     errors = 0
@@ -71,7 +81,7 @@ async def run_pipeline(
 
         row_idx = 0
         consecutive_error_batches = 0
-        while len(samples) < config.n_samples and row_idx < len(rows) * 10:
+        while len(samples) < config.n_samples and row_idx < len(all_rows) * 10:
             batch_rows = [rows[(row_idx + i) % len(rows)] for i in range(concurrency)]
             row_idx += concurrency
 
@@ -85,7 +95,7 @@ async def run_pipeline(
 
             batch_had_success = False
             for r in results:
-                if isinstance(r, BaseException):
+                if isinstance(r, Exception):
                     errors += 1
                     key = type(r).__name__
                     if key not in _logged_errors:
@@ -94,8 +104,10 @@ async def run_pipeline(
 
                         Console().print(f"[red]Error ({key}): {r}[/red]")
                     continue
-                batch_had_success = True
+                if isinstance(r, BaseException):
+                    raise r
                 for sample in r:
+                    batch_had_success = True
                     samples.append(sample)
                     progress.advance(task_id)
                     if len(samples) >= config.n_samples:
@@ -126,10 +138,12 @@ def push_to_hub(
     repo_id: str = HF_REPO,
 ) -> None:
     """Append samples to the Hub dataset subset for this task."""
+    from datasets.exceptions import DatasetNotFoundError
+
     try:
         existing = load_dataset(repo_id, task, split="train", token=settings.hf_token)
         combined = list(existing) + samples
-    except Exception:
+    except DatasetNotFoundError:
         combined = samples
 
     ds = Dataset.from_list(combined)

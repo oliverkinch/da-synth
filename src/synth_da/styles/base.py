@@ -56,7 +56,6 @@ class BaseGenerator(ABC):
         self,
         row: dict[str, Any],
         seed_config: str,
-        judge: bool = False,
     ) -> list[dict[str, Any]]:
         """Generate zero or more samples from one seed row."""
         result = await self.generate_one(row=row, seed_config=seed_config)
