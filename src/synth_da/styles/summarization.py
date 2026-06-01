@@ -73,8 +73,7 @@ ASSISTENT: <opsummering>"""
         raw = await self.client.generate(messages=generation_messages, temperature=0.8)
         user_msg, assistant_msg = _parse_summarization(raw=raw)
 
-        system_msgs = self._maybe_system_prompt(content=random.choice(_SYSTEM_PROMPTS))
-        return system_msgs + [
+        return [
             {"role": "user", "content": user_msg},
             {"role": "assistant", "content": assistant_msg},
         ]

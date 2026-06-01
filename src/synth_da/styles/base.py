@@ -22,14 +22,6 @@ class BaseGenerator(ABC):
         """Build the generation prompt from a seed row."""
         ...
 
-    def _maybe_system_prompt(self, content: str) -> list[Message]:
-        """Return a system message list based on system_prompt_rate."""
-        import random
-
-        if random.random() < self.config.system_prompt_rate:
-            return [{"role": "system", "content": content}]
-        return []
-
     def _get_source_id(self, row: dict[str, Any]) -> str | None:
         if self.config.source_id_column:
             return str(row.get(self.config.source_id_column, "")) or None

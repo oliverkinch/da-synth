@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import random
 from pathlib import Path
 from typing import Any
 
@@ -105,8 +104,7 @@ class QAGenerator(BaseGenerator):
         if not question or not answer:
             return None
 
-        system_msgs = self._maybe_system_prompt(content=random.choice(_SYSTEM_PROMPTS))
-        return system_msgs + [
+        return [
             {"role": "user", "content": question},
             {"role": "assistant", "content": answer},
         ]

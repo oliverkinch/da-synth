@@ -2,12 +2,8 @@ task: translation
 seed_dataset: oliverkinch/eur-lex
 seed_subset: all
 seed_split: train
-source_column: en_document
-target_column: da_document
-direction: en->da
-n_samples: 3000
-persona_sampling: false
-system_prompt_rate: 0.3
+text_column: text_da
+n_samples: 5000
 filters:
   min_assistant_tokens: 30
   max_repetition_ratio: 0.4

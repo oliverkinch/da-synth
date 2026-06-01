@@ -1,4 +1,4 @@
-# CONTEXT.md — Danish Synthetic Instruction Data Generator
+# CONTEXT.md — Danish Synthetic Dataset Generator
 
 ## Coding Conventions
 
@@ -8,57 +8,38 @@
 
 ## Purpose
 
-A Python repository for generating high-quality synthetic Danish instruction-finetuning data (supervised finetuning / SFT). Generation is a two-stage pipeline: first produce a **Knowledge Dataset** of raw Q+A pairs, then convert those pairs into **chat-formatted SFT samples**. Data is generated using the Alexandra Institute inference server via the OpenAI client.
+A Python repository for generating high-quality synthetic Danish datasets. Active dataset types: QA (`{question, answer}` pairs), Summarization (`{document, summary}` pairs), and Translation (`{da, en}` pairs). Data is generated using the Alexandra Institute inference server via the OpenAI client.
 
 ---
 
 ## Glossary
 
-**Knowledge Pair**
-A raw extracted question-and-answer unit, produced in the first pipeline stage. Not yet chat-formatted. Schema:
-```json
-{"question": "...", "answer": "...", "run_id": "...", "source_id": "...", "seed_dataset": "...", "seed_config": "..."}
-```
+**Record**
+A single output row. Schema varies by dataset type — see Output Format. Each record carries metadata fields (`run_id`, `seed_dataset`, `seed_config`, and optionally `source_id`) regardless of type.
 
-**Knowledge Dataset**
-The collection of Knowledge Pairs for a given style, stored as JSONL. Intermediate output — not the final training artifact. For the `qa` style this means (question, answer) pairs extracted from seed documents; the source text is not retained.
-
-**Chat Conversion**
-The second pipeline stage. Takes Knowledge Pairs and wraps them in a chat format (system prompt, optional persona-influenced user phrasing), producing SFT Samples. Personas and system-prompt sampling happen at this stage, not during extraction.
-
-**Sample**
-A single training example. The final output of the Chat Conversion stage, always in messages format:
-```json
-{"messages": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
-```
-Optionally includes a system message as the first turn.
-
-**Style**
-A task category defining the type of instruction-following a sample trains. Each style has its own generation pipeline, prompt template, quality criteria, and seed dataset configuration(s). Active styles: `qa`, `summarization`, `translation`, `grounded`.
+**Dataset Type**
+A category of synthetic dataset, each with its own schema, generation pipeline, prompt template, quality criteria, and seed dataset configuration(s). Active dataset types: `qa`, `summarization`, `translation`.
 
 **General Knowledge Fact**
-A fact extracted from a seed document that a competent Danish speaker could plausibly encounter in mainstream media, school education, or everyday life — and that a language model is therefore likely to have learned reliably enough to answer correctly without the source text present. The `qa` style exclusively targets general knowledge facts: seed text is used at generation time to identify eligible facts and produce naturalistic questions, but neither the source text nor the fact itself appears in the final sample. Facts that are too domain-specific, too technical, or too obscure to pass this bar are discarded rather than used as generation seeds.
+A fact extracted from a seed document that a competent Danish speaker could plausibly encounter in mainstream media, school education, or everyday life — and that a language model is therefore likely to have learned reliably enough to answer correctly without the source text present. The `qa` dataset type exclusively targets general knowledge facts: seed text is used at generation time to identify eligible facts and produce naturalistic questions, but neither the source text nor the fact itself appears in the final record. Facts that are too domain-specific, too technical, or too obscure to pass this bar are discarded rather than used as generation seeds.
 
-**Style Doc**
-A per-style markdown document (`docs/styles/<style>.md`). Contains: definition, quality criteria, known pitfalls, and golden example samples. Used for human review and the `/dataset_review` skill — never injected into generation prompts.
+**Dataset Type Doc**
+A per-type markdown document (`docs/dataset_types/<type>.md`). Contains: definition, quality criteria, known pitfalls, and golden example records. Used for human review and the `/dataset_review` skill — never injected into generation prompts.
 
 **Quality Criteria**
-A plain-text description of what makes a high-quality sample for a given style. Stored in the style's YAML config and injected into generation prompts. Distinct from golden examples (which live only in the style doc).
+A plain-text description of what makes a high-quality record for a given dataset type. Distinct from golden examples (which live only in the dataset type doc).
 
 **Seed Dataset**
-A HuggingFace dataset used as source material for generation. Each seed dataset has a YAML config that maps its columns to the fields expected by the style's prompt template.
+A HuggingFace dataset used as source material for generation. Each seed dataset has a YAML config that maps its columns to the fields expected by the dataset type's prompt template.
 
 **Dataset Config**
-A YAML file under `configs/<style>/` that specifies: seed dataset, column mapping (via `text_template` or explicit `source_column`/`target_column`), sampling parameters, and persona/system prompt rates.
+A YAML file under `configs/<type>/` that specifies: seed dataset, column mapping (via `text_template` or explicit `source_column`/`target_column`), and sampling parameters.
 
 **Persona**
-A synthetic Danish person profile used to diversify question phrasing and register. Sourced from `oliverkinch/danish-personas` (HuggingFace Hub, 5 000 personas). Derived from `nvidia/Nemotron-Personas-USA` by translating the persona text to Danish and replacing US geographic fields with Danish equivalents. Fields: `uuid`, `name`, `persona`, `age`, `sex`, `occupation`, `education_level`, `hobbies_and_interests`, `city`, `zipcode`, `country`. Personas are a **soft diversity signal** applied during Chat Conversion to vary how the user question is phrased — they do not appear in the final sample, and only `age` + free-text `persona` description are passed (not occupation or city, which tend to be quoted verbatim).
+A synthetic Danish person profile used to diversify question phrasing and register in QA generation. Sourced from `oliverkinch/danish-personas` (HuggingFace Hub, 5 000 personas). Derived from `nvidia/Nemotron-Personas-USA` by translating the persona text to Danish and replacing US geographic fields with Danish equivalents. Fields: `uuid`, `name`, `persona`, `age`, `sex`, `occupation`, `education_level`, `hobbies_and_interests`, `city`, `zipcode`, `country`. Personas are a **soft diversity signal** in the generation prompt — they do not appear in the output record. Only `age` + free-text `persona` description are passed (not occupation or city, which tend to be quoted verbatim).
 
-**System Prompt Rate**
-The fraction of generated samples that include a system prompt as the first message. Set per dataset config. Reflects the real-world mix of deployments with and without system prompts.
-
-**Style Doc Review / `/dataset_review`**
-A skill that loads the style doc for a given style and a sample of generated outputs, performs side-by-side comparison against the golden examples, and flags samples that diverge from quality criteria. Review is performed against the final chat-formatted Samples, not raw Knowledge Pairs.
+**Dataset Type Doc Review / `/dataset_review`**
+A skill that loads the dataset type doc and a sample of generated records, performs side-by-side comparison against the golden examples, and flags records that diverge from quality criteria.
 
 ---
 
@@ -76,7 +57,7 @@ Client: `openai` Python package.
 ## Seed Datasets
 
 ### General Danish text (dynaword subsets)
-- `danish-foundation-models/danish-dynaword` — see [`docs/datasets/dynaword.md`](docs/datasets/dynaword.md) for subset selection, exclusion rationale, and style assignments.
+- `danish-foundation-models/danish-dynaword` — see [`docs/datasets/dynaword.md`](docs/datasets/dynaword.md) for subset selection, exclusion rationale, and dataset type assignments.
 
 ### Wikipedia
 - `oliverkinch/danish_wikipedia` — 300k Danish Wikipedia articles (CC BY-SA 4.0, 2026-03-01 dump). Replaces the dynaword wikipedia subset. Fields: `url`, `title`, `text`.
@@ -92,9 +73,6 @@ Client: `openai` Python package.
 ### Statistics
 - `oliverkinch/danmarks-statistik` — Statistics Denmark data (public domain / Danish government open data).
 
-### Translation source (English high-quality)
-- `allenai/Dolci-Instruct-SFT` — 2.15M samples (ODC-BY 1.0, commercially usable). Already in messages format. Fields: `id`, `messages`, `source_dataset`, `domain`. Filter out `source_dataset` values containing "Precise IF" before translating (verifiable format constraints break on translation). The `domain` field (Math, Coding, Science, Safety, Other, Multilingual) allows targeted subset selection. The Aya subset (~100k, Apache 2.0) is multilingual — check for existing Danish samples before translating. Safety domain (WildGuardMix, WildJailbreak, CoCoNot) is particularly valuable as a source of Danish refusal training data.
-
 ---
 
 ## Dataset Config Schema
@@ -104,36 +82,38 @@ task: qa | summarization | translation
 seed_dataset: <hf_dataset_id>
 seed_subset: <subset_name>
 seed_split: train
-# For single or merged columns:
+# Column mapping (all types):
 text_template: "## {title}\n\n{text}"   # Python .format() over column names
 # OR single column shorthand:
 text_column: text
-# For translation only:
-source_column: en_document
-target_column: da_document
-direction: en->da
 # Generation parameters:
 n_samples: 1000
-persona_sampling: true
-system_prompt_rate: 0.6
+persona_sampling: true      # QA only; ignored for other dataset types
+max_seed_chars: 4000        # Summarization only; seed rows exceeding this are skipped
 ```
 
-`text_template` and `text_column` are mutually exclusive. Translation configs use `source_column`/`target_column` instead.
+`text_template` and `text_column` are mutually exclusive. All dataset types use the same column mapping — translation no longer has `source_column`, `target_column`, or `direction`.
 
 ---
 
 ## Output Format
 
-**Stage 1 — Knowledge Dataset** (JSONL, one Knowledge Pair per line):
+All output is JSONL, one record per line. Schema varies by dataset type:
+
+**QA**
 ```json
 {"question": "Hvornår fik kvinder stemmeret i Danmark?", "answer": "Ved grundlovsændringen i 1915.", "run_id": "abc123", "source_id": "https://da.wikipedia.org/?curid=...", "seed_dataset": "oliverkinch/danish_wikipedia", "seed_config": "configs/qa/danish_wikipedia.yaml"}
 ```
 
-**Stage 2 — SFT Dataset** (JSONL, one Sample per line):
+**Summarization**
 ```json
-{"messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}], "run_id": "abc123", "style": "qa", "seed_dataset": "oliverkinch/danish_wikipedia", "seed_config": "configs/qa/danish_wikipedia.yaml", "source_id": "https://da.wikipedia.org/?curid=..."}
+{"document": "...", "summary": "...", "run_id": "abc123", "source_id": "...", "seed_dataset": "oliverkinch/eur-lex-sum", "seed_config": "configs/summarization/eur_lex_sum.yaml"}
 ```
-System message is omitted in samples where `system_prompt_rate` sampling excludes it.
+
+**Translation**
+```json
+{"da": "...", "en": "...", "run_id": "abc123", "source_id": "...", "seed_dataset": "oliverkinch/eur-lex", "seed_config": "configs/translation/eur_lex.yaml"}
+```
 
 ---
 
@@ -151,8 +131,7 @@ uv run danish-sft translate-nemotron --n 10000
 
 ## Output / HuggingFace Hub
 
-- **Knowledge dataset repo**: `oliverkinch/danish-knowledge-qa` — one subset per seed dataset config
-- **SFT dataset repo**: `oliverkinch/danish-sft` — one subset per style (`qa`, `summarization`, `translation`)
+- One HuggingFace repo per dataset type: `oliverkinch/danish-qa`, `oliverkinch/danish-summarization`, `oliverkinch/danish-translation`
 - **Behavior on repeated runs**: append (never overwrite). Each record includes a `run_id` metadata field for traceability.
 - Source-level deduplication: on each run the output file is scanned for existing `source_id` values; rows already present in the output are skipped before generation begins.
 - `source_id` is optional — only present when `source_id_column` is set in the dataset config.
@@ -161,53 +140,51 @@ uv run danish-sft translate-nemotron --n 10000
 
 ## Generation Pipeline
 
-Two stages, run separately:
-
-**Stage 1 — Knowledge Extraction**
 - Async generation using `asyncio` + the OpenAI async client
 - Concurrency controlled via `--concurrency` CLI flag (default: 20)
 - Progress displayed with `rich`
-- Each batch: sample seed rows → render seed text → call LLM (extract fact + generate Q+A in one call) → apply rule-based filters + binary judge → write Knowledge Pair to output JSONL
-
-**Stage 2 — Chat Conversion** *(planned)*
-- Reads Knowledge Dataset JSONL
-- For each pair: sample persona (if enabled) → sample system prompt (at `system_prompt_rate`) → call LLM to produce a naturalistic chat-formatted question from the persona's perspective → write SFT Sample to output JSONL
-- Personas and system prompts are injected here, not during extraction
+- Each batch: sample seed rows → render seed text → call LLM → apply rule-based filters (+ binary judge for QA) → write Record to output JSONL
+- The LLM always generates output fields. Seed datasets that contain gold targets (e.g. `eur-lex` parallel pairs, `eur-lex-sum` summaries) are used as input only — see ADR 0002.
+- **QA**: one LLM call — extracts a general-knowledge fact and generates question + answer.
+- **Summarization**: two LLM calls — first generate a natural document from the seed text, then summarize it. Both `document` and `summary` fields are synthesised; neither is copied from the seed. Seed rows exceeding a configurable character limit are filtered before generation so the generated document fits the prompt window.
+- **Translation**: two LLM calls — first generate a natural Danish passage inspired by the seed text, then translate it to English. Both `da` and `en` fields are synthesised; neither is copied from the seed.
 
 ---
 
 ## Quality Filtering
 
-Applied post-generation, before pushing to Hub. All thresholds are configurable per style in the dataset config.
+Applied post-generation, before pushing to Hub. All thresholds are configurable per dataset type in the dataset config.
 
 ### Rule-based filters (always on)
-1. **Language detection** — drop samples where the assistant response is not Danish (`lingua` library preferred over `langdetect` for accuracy).
-2. **Length filter** — drop samples where the assistant response is below a minimum token count. Threshold varies by style (QA answers can be short; summaries should be substantial).
-3. **Repetition filter** — drop samples with high n-gram repetition in the assistant response.
+1. **Language detection** — drop records where the generated text is not Danish (`lingua` library).
+2. **Length filter** — drop records below a minimum token count. Threshold varies by dataset type (QA answers can be short; summaries should be substantial).
+3. **Repetition filter** — drop records with high n-gram repetition in the generated text.
 
 ### LLM-as-judge (always on for QA)
-- Binary pass/fail — rejects samples that do not clear the quality bar, rather than scoring them.
+- Binary pass/fail — rejects records that do not clear the quality bar, rather than scoring them.
 - For `qa`: rejects if (1) the question can only be answered with access to the source text, (2) the question contains or paraphrases the answer, (3) the question is confirmation-seeking or leading, (4) the question uses AI phrasing ("hvad er det mest kendte faktum om…").
 - Uses the same inference model at temperature 0.
 
-### Known style-specific failure modes
+### Known dataset-type-specific failure modes
 - **QA**: question leakage — the generated question contains information from the answer. Caught by the binary judge.
 - **QA**: context dependency — the question only makes sense with the source text present. Caught by the binary judge.
-- **Grounded**: disguised summarization — the generated instruction asks for "the main points" or "an overview", producing a sample that belongs in the `summarization` style instead. Caught by steering the generation prompt away from compression instructions.
-- **Grounded**: source text too short — a single sentence or very short passage produces trivial samples. Filter seed rows by minimum token count before generation.
-- **General**: responses in English instead of Danish (caught by language filter).
-- **General**: truncated or degenerate responses (caught by length + repetition filters).
+- **Summarization**: opening-sentence bias — the model summarizes only the first paragraph and ignores the rest of the document.
+- **Summarization**: faithfulness violation — the summary introduces information not present in the source.
+- **Translation**: calquing — preserving English syntactic structure in Danish rather than recasting naturally.
+- **Translation**: register drift — translating formal text into informal Danish or vice versa.
+- **General**: output in English instead of Danish (caught by language filter).
+- **General**: truncated or degenerate output (caught by length + repetition filters).
 
 ---
 
-## Style Doc Structure (`docs/styles/<style>.md`)
+## Dataset Type Doc Structure (`docs/dataset_types/<type>.md`)
 
-- **Definition** — what this style trains
-- **Quality Criteria** — plain-text description of what makes a good sample
-- **Known Pitfalls** — common failure modes observed in generated samples
-- **Golden Examples** — 2–5 hand-curated samples in messages format
+- **Definition** — what this dataset trains / what it is for
+- **Quality Criteria** — plain-text description of what makes a good record
+- **Known Pitfalls** — common failure modes observed in generated records
+- **Golden Examples** — 2–5 hand-curated records in the type's native schema
 
-Style docs are maintained by humans and updated via the `/dataset_review` skill. They are **never injected into generation prompts** (to preserve diversity).
+Dataset type docs are maintained by humans and updated via the `/dataset_review` skill. They are **never injected into generation prompts** (to preserve diversity).
 
 ---
 
@@ -219,4 +196,4 @@ Personas are preprocessed from `nvidia/Nemotron-Personas-USA` (CC BY 4.0):
 3. Replace `city`/`state`/`zipcode` with Danish equivalents (from a curated list of Danish cities and postal codes)
 4. Output: `assets/personas.jsonl`
 
-Personas are applied during Chat Conversion (stage 2): the converter is prompted to phrase the user question as if it came from a person with the given profile. Personas do not appear in the final training sample.
+Personas are injected as a soft diversity signal into the QA generation prompt: the generator is prompted to phrase the question as if it came from a person with the given profile. Personas do not appear in the output record.
