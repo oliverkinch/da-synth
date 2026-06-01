@@ -82,12 +82,24 @@ def generate(
 
         from synth_da.pipeline import push_to_hub, run_pipeline
 
+        seen_ids: set[str] = set()
+        if output and output.exists():
+            with output.open(encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        sid = json.loads(line).get("source_id")
+                        if sid:
+                            seen_ids.add(sid)
+                    except json.JSONDecodeError:
+                        pass
+
         samples = asyncio.run(
             run_pipeline(
                 config=cfg,
                 config_path=cfg_path,
                 settings=settings,
                 concurrency=concurrency,
+                seen_ids=seen_ids,
             )
         )
         console.print(f"[green]✓ Generated {len(samples)} samples[/green]")

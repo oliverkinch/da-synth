@@ -35,6 +35,7 @@ async def run_pipeline(
     config_path: Path,
     settings: Settings,
     concurrency: int = 20,
+    seen_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     client = GenerationClient(settings=settings)
     generator = _make_generator(config=config, client=client)
@@ -47,6 +48,8 @@ async def run_pipeline(
     )
 
     rows = list(ds)
+    if seen_ids is not None and config.source_id_column:
+        rows = [r for r in rows if str(r.get(config.source_id_column, "")) not in seen_ids]
     random.shuffle(rows)
 
     samples: list[dict[str, Any]] = []
