@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import warnings
 from collections import Counter
 from typing import TYPE_CHECKING
 
@@ -64,8 +66,6 @@ Returner KUN JSON: {{"pass": true}} eller {{"pass": false}}"""
 
 
 async def qa_judge(question: str, answer: str, client: GenerationClient) -> bool:
-    import json
-
     prompt = _QA_JUDGE_PROMPT.format(question=question, answer=answer)
     raw = await client.generate(
         messages=[{"role": "user", "content": prompt}],
@@ -75,7 +75,5 @@ async def qa_judge(question: str, answer: str, client: GenerationClient) -> bool
     try:
         return bool(json.loads(raw).get("pass", False))
     except Exception:
-        import warnings
-
         warnings.warn(f"qa_judge: could not parse response {raw!r:.80}", stacklevel=2)
         return False

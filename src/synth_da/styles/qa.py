@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 from synth_da.client import GenerationClient
@@ -11,15 +10,6 @@ from synth_da.config import DatasetConfig
 from synth_da.filters import passes_filters, qa_judge
 from synth_da.personas import sample_persona
 from synth_da.styles.base import BaseGenerator
-
-_SYSTEM_PROMPTS_PATH = (
-    Path(__file__).parent.parent.parent.parent / "assets" / "system_prompts" / "qa.txt"
-)
-_SYSTEM_PROMPTS = [
-    line.strip()
-    for line in _SYSTEM_PROMPTS_PATH.read_text(encoding="utf-8").splitlines()
-    if line.strip()
-]
 
 _PROMPT = """\
 Find det bedste alment kendte faktum fra teksten.
