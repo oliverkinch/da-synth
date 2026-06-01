@@ -61,7 +61,7 @@ Client: `openai` Python package.
 - `danish-foundation-models/danish-dynaword` — see [`docs/datasets/dynaword.md`](docs/datasets/dynaword.md) for subset selection, exclusion rationale, and style assignments.
 
 ### Wikipedia
-- `oliverkinch/danish_wikipedia` — 300k Danish Wikipedia articles (CC BY-SA 4.0, 2026-03-01 dump). Replaces the dynaword wikipedia subset.
+- `oliverkinch/danish_wikipedia` — 300k Danish Wikipedia articles (CC BY-SA 4.0, 2026-03-01 dump). Replaces the dynaword wikipedia subset. Fields: `url`, `title`, `text`.
 
 ### EU Legislation
 - `oliverkinch/eur-lex` — bilingual DA+EN EU legislative documents from CELLAR (CC BY 4.0). Used for translation and as general seed text. Replaces any separate "cellar" dataset. Fields: `celex`, `resource_type`, `url`, `title_en`, `title_da`, `text_en`, `text_da`, `text_source_en`, `text_source_da`, `chars_en`, `chars_da`.
@@ -138,9 +138,11 @@ uv run danish-sft translate-nemotron --n 10000
     "run_id": "abc123",
     "style": "qa",
     "seed_dataset": "oliverkinch/danish_wikipedia",
-    "seed_config": "configs/qa/danish_wikipedia.yaml"
+    "seed_config": "configs/qa/danish_wikipedia.yaml",
+    "source_id": "https://da.wikipedia.org/?curid=12345"
   }
   ```
+  `source_id` is optional — only present when `source_id_column` is set in the dataset config.
 
 ---
 

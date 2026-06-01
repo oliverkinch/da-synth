@@ -30,10 +30,16 @@ class BaseGenerator(ABC):
             return [{"role": "system", "content": content}]
         return []
 
+    def _get_source_id(self, row: dict[str, Any]) -> str | None:
+        if self.config.source_id_column:
+            return str(row.get(self.config.source_id_column, "")) or None
+        return None
+
     def _make_sample(
         self,
         messages: list[Message],
         seed_config: str,
+        source_id: str | None = None,
         judge_score: int | None = None,
         judge_reason: str | None = None,
     ) -> dict[str, Any]:
@@ -44,6 +50,8 @@ class BaseGenerator(ABC):
             "seed_dataset": self.config.seed_dataset,
             "seed_config": seed_config,
         }
+        if source_id is not None:
+            sample["source_id"] = source_id
         if judge_score is not None:
             sample["judge_score"] = judge_score
             sample["judge_reason"] = judge_reason
@@ -85,4 +93,6 @@ class BaseGenerator(ABC):
 
             judge_score, judge_reason = await judge_sample(messages, self.client)
 
-        return self._make_sample(messages, seed_config, judge_score, judge_reason)
+        return self._make_sample(
+            messages, seed_config, self._get_source_id(row), judge_score, judge_reason
+        )

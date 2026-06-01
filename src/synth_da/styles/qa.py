@@ -18,13 +18,13 @@ _SYSTEM_PROMPTS = [
     "Svar på brugerens spørgsmål på dansk.",
 ]
 
-_EXTRACT_FACTS_PROMPT = """\
-Læs teksten herunder og identificér op til {max_facts} fakta der kan betragtes som \
-almen viden — fakta som en kompetent dansker sandsynligvis ville støde på i dagspressen, \
+_EXTRACT_FACT_PROMPT = """\
+Læs teksten herunder og identificér det bedste enkeltfaktum der kan betragtes som \
+almen viden — noget en kompetent dansker sandsynligvis ville støde på i dagspressen, \
 i skolen eller i hverdagen, og som en sprogmodel med rimelighed kan forventes at kende.
 
-Returner KUN et JSON-array af korte faktasætninger på dansk. \
-Hvis teksten ikke indeholder fakta der lever op til dette, returneres et tomt array.
+Returner KUN én kort faktasætning på dansk som en JSON-streng. \
+Hvis teksten ikke indeholder fakta der lever op til dette, returneres null.
 
 Eksempler på almen viden:
 - "Folketinget har 179 medlemmer"
@@ -40,7 +40,7 @@ Tekst:
 {text}
 ---
 
-Svar udelukkende med et JSON-array, f.eks.: ["fakta 1", "fakta 2"] eller []"""
+Svar udelukkende med en JSON-streng eller null, f.eks.: "Danmark er et monarki" eller null"""
 
 _GENERATE_QA_PROMPT = """\
 Du skal generere ét spørgsmål-og-svar-par på dansk baseret på faktaoplysningen herunder.
@@ -81,47 +81,44 @@ class QAGenerator(BaseGenerator):
         persona_text = persona_to_prompt(persona) if persona else None
 
         text = self.config.render_text(row)
-        facts = await self._extract_facts(text)
-        if not facts:
+        fact = await self._extract_fact(text)
+        if not fact:
             return []
 
-        samples: list[dict[str, Any]] = []
-        for fact in facts:
-            try:
-                messages = await self._generate_qa(text, fact, persona_text)
-            except ValueError:
-                continue
+        try:
+            messages = await self._generate_qa(text, fact, persona_text)
+        except ValueError:
+            return []
 
-            if not passes_filters(messages, self.config.filters):
-                continue
+        if not passes_filters(messages, self.config.filters):
+            return []
 
-            judge_score: int | None = None
-            judge_reason: str | None = None
-            if judge:
-                from synth_da.filters import judge_sample
+        judge_score: int | None = None
+        judge_reason: str | None = None
+        if judge:
+            from synth_da.filters import judge_sample
 
-                judge_score, judge_reason = await judge_sample(messages, self.client)
+            judge_score, judge_reason = await judge_sample(messages, self.client)
 
-            samples.append(self._make_sample(messages, seed_config, judge_score, judge_reason))
+        return [
+            self._make_sample(
+                messages, seed_config, self._get_source_id(row), judge_score, judge_reason
+            )
+        ]
 
-        return samples
-
-    async def _extract_facts(self, text: str) -> list[str]:
-        prompt = _EXTRACT_FACTS_PROMPT.format(
-            max_facts=self.config.max_facts_per_doc,
-            text=text[:4000],
-        )
+    async def _extract_fact(self, text: str) -> str | None:
+        prompt = _EXTRACT_FACT_PROMPT.format(text=text[:4000])
         raw = await self.client.generate(
             [{"role": "user", "content": prompt}],
             temperature=0.3,
         )
         try:
-            facts = json.loads(raw)
-            if isinstance(facts, list):
-                return [str(f) for f in facts if f][: self.config.max_facts_per_doc]
+            value = json.loads(raw)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
         except (json.JSONDecodeError, ValueError):
             pass
-        return []
+        return None
 
     async def _generate_qa(self, text: str, fact: str, persona_text: str | None) -> list[Message]:
         persona_note = ""

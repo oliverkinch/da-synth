@@ -3,6 +3,7 @@ seed_dataset: oliverkinch/danish_wikipedia
 seed_subset: default
 seed_split: train
 text_template: "# {title}\n\n{text}"
+source_id_column: url
 n_samples: 10000
 persona_sampling: true
 system_prompt_rate: 0.6
