@@ -12,7 +12,7 @@ from synth_da.styles.base import BaseGenerator
 
 _PROMPT = """\
 Find det bedste alment kendte faktum fra teksten.
-Genér et naturligt, åbent dansk spørgsmål som faktaet besvarer.
+Genér et kortfattet, direkte dansk spørgsmål som faktaet besvarer — ingen indledende sætninger eller kontekst.
 Faktaet er svaret — det må ikke fremgå af spørgsmålet.
 Returner som JSON eller null.
 
