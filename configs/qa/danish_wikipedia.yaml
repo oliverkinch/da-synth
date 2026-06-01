@@ -5,7 +5,6 @@ seed_split: train
 text_template: "# {title}\n\n{text}"
 source_id_column: url
 n_samples: 10000
-persona_sampling: true
 filters:
   min_assistant_tokens: 5
   max_repetition_ratio: 0.4
