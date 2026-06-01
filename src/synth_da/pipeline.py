@@ -70,7 +70,7 @@ async def run_pipeline(
         row_idx = 0
         consecutive_error_batches = 0
         while len(samples) < config.n_samples and row_idx < len(rows) * 10:
-            batch_rows = [rows[row_idx % len(rows)] for _ in range(concurrency)]
+            batch_rows = [rows[(row_idx + i) % len(rows)] for i in range(concurrency)]
             row_idx += concurrency
 
             results = await asyncio.gather(
