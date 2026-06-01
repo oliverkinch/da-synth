@@ -2,27 +2,17 @@
 
 from __future__ import annotations
 
-import json
 import random
-from pathlib import Path
 from typing import Any
 
-PERSONAS_PATH = Path(__file__).parent.parent.parent / "assets" / "personas.jsonl"
 HF_PERSONAS_REPO = "oliverkinch/danish-personas"
 
 
-def load_personas(path: Path = PERSONAS_PATH) -> list[dict[str, Any]]:
-    if path.exists():
-        with path.open() as f:
-            return [json.loads(line) for line in f if line.strip()]
-    # Fall back to HuggingFace Hub
-    try:
-        from datasets import load_dataset
+def load_personas() -> list[dict[str, Any]]:
+    from datasets import load_dataset
 
-        ds = load_dataset(HF_PERSONAS_REPO, split="train")
-        return [dict(row) for row in ds]
-    except Exception:
-        return []
+    ds = load_dataset(HF_PERSONAS_REPO, split="train")
+    return [dict(row) for row in ds]
 
 
 _PERSONAS: list[dict[str, Any]] = []

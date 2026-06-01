@@ -37,7 +37,7 @@ A HuggingFace dataset used as source material for generation. Each seed dataset 
 A YAML file under `configs/<style>/` that specifies: seed dataset, column mapping (via `text_template` or explicit `source_column`/`target_column`), sampling parameters, and persona/system prompt rates.
 
 **Persona**
-A synthetic Danish person profile used to diversify question style and framing. Derived from `nvidia/Nemotron-Personas-USA` by translating the persona text to Danish and replacing US geographic fields with Danish equivalents (city, postal code). Personas are used as a soft diversity signal in the *generator prompt* (not as system prompts in the output sample). Stored as a preprocessed `personas.jsonl` asset.
+A synthetic Danish person profile used to diversify question style and framing. Sourced from `oliverkinch/danish-personas` (HuggingFace Hub, 5 000 personas). Derived from `nvidia/Nemotron-Personas-USA` by translating the persona text to Danish and replacing US geographic fields with Danish equivalents. Fields: `uuid`, `name`, `persona`, `age`, `sex`, `occupation`, `education_level`, `hobbies_and_interests`, `city`, `zipcode`, `country`. Personas are used as a soft diversity signal in the *generator prompt* (not as system prompts in the output sample).
 
 **System Prompt Rate**
 The fraction of generated samples that include a system prompt as the first message. Set per dataset config. Reflects the real-world mix of deployments with and without system prompts.
