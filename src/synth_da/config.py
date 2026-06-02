@@ -10,6 +10,8 @@ import yaml
 from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from synth_da.preprocess import strip_birth_parenthetical
+
 
 class Task(str, Enum):
     QA = "qa"
@@ -62,6 +64,7 @@ class DatasetConfig(BaseModel):
         text = self.render_text(row=row)
         if not text or not text.strip():
             return None
+        text = strip_birth_parenthetical(text=text)
         if self.min_seed_chars and len(text) < self.min_seed_chars:
             return None
         if self.max_seed_chars and len(text) > self.max_seed_chars:

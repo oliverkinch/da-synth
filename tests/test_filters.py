@@ -3,50 +3,43 @@
 from synth_da.config import FilterConfig
 from synth_da.filters import _repetition_ratio, _token_count, passes_filters
 
-_DANISH_RESPONSE = (
+_DANISH_TEXT = (
     "Danmark er et lille land i Nordeuropa med en rig historie og kultur. "
     "Landet er kendt for sit velfærdssystem, sin åbne samfundsmodel og sine mange cykelstier. "
     "Hovedstaden er København, som er hjemsted for over en million mennesker."
 )
-_ENGLISH_RESPONSE = (
+_ENGLISH_TEXT = (
     "Denmark is a small country in Northern Europe with a rich history and culture. "
     "It is well known for its welfare system, open society, and extensive cycling infrastructure. "
     "The capital city is Copenhagen, home to over one million people."
 )
-_SHORT_RESPONSE = "Ja."
-_REPETITIVE_RESPONSE = " ".join(["dette er en test"] * 20)
+_SHORT_TEXT = "Ja."
+_REPETITIVE_TEXT = " ".join(["dette er en test"] * 20)
 
 
-def _make_messages(content: str) -> list[dict[str, str]]:
-    return [
-        {"role": "user", "content": "Hvad er Danmark?"},
-        {"role": "assistant", "content": content},
-    ]
-
-
-def test_passes_danish_response() -> None:
+def test_passes_danish_text() -> None:
     cfg = FilterConfig()
-    assert passes_filters(messages=_make_messages(content=_DANISH_RESPONSE), cfg=cfg) is True
+    assert passes_filters(text=_DANISH_TEXT, cfg=cfg) is True
 
 
-def test_fails_english_response() -> None:
+def test_fails_english_text() -> None:
     cfg = FilterConfig(language_check=True)
-    assert passes_filters(messages=_make_messages(content=_ENGLISH_RESPONSE), cfg=cfg) is False
+    assert passes_filters(text=_ENGLISH_TEXT, cfg=cfg) is False
 
 
 def test_language_check_disabled() -> None:
     cfg = FilterConfig(language_check=False)
-    assert passes_filters(messages=_make_messages(content=_ENGLISH_RESPONSE), cfg=cfg) is True
+    assert passes_filters(text=_ENGLISH_TEXT, cfg=cfg) is True
 
 
-def test_fails_short_response() -> None:
+def test_fails_short_text() -> None:
     cfg = FilterConfig(min_assistant_tokens=10)
-    assert passes_filters(messages=_make_messages(content=_SHORT_RESPONSE), cfg=cfg) is False
+    assert passes_filters(text=_SHORT_TEXT, cfg=cfg) is False
 
 
-def test_fails_repetitive_response() -> None:
+def test_fails_repetitive_text() -> None:
     cfg = FilterConfig(max_repetition_ratio=0.3)
-    assert passes_filters(messages=_make_messages(content=_REPETITIVE_RESPONSE), cfg=cfg) is False
+    assert passes_filters(text=_REPETITIVE_TEXT, cfg=cfg) is False
 
 
 def test_token_count() -> None:
