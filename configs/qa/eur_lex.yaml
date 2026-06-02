@@ -5,6 +5,6 @@ seed_split: train
 text_column: text_da
 n_samples: 2000
 filters:
-  min_assistant_tokens: 5
+  min_assistant_tokens: 0
   max_repetition_ratio: 0.4
-  language_check: true
+  language_check: false

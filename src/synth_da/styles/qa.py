@@ -14,10 +14,13 @@ from synth_da.client import GenerationClient
 from synth_da.filters import passes_filters
 from synth_da.styles.base import BaseGenerator
 
-_SKIP_QUESTION_RE = re.compile(r"\bfødt\b|\bi dag\b", re.IGNORECASE)
+_SKIP_QUESTION_RE = re.compile(
+    r"\bfødt\b|\bi dag\b|\bi teksten\b|\bi kildeteksten\b|\bifølge teksten\b|\bifølge kildeteksten\b",
+    re.IGNORECASE,
+)
 
 _EXAMPLES_PATH = (
-    Path(__file__).parent.parent.parent.parent / "assets" / "qa_judge_rejection_examples.jsonl"
+    Path(__file__).parent.parent.parent.parent / "assets" / "qa_rejection_examples.jsonl"
 )
 
 
@@ -40,8 +43,9 @@ def _build_judge_prompt(pairs: list[tuple[str, str]]) -> str:
 
     lines = [
         "Du er kvalitetsdommer for et vidensbaseret dansk QA-datasæt.\n"
-        "Et godt par har et svar der er tidløst (ikke forældet om et år) og selvstændigt "
-        "(kræver ikke adgang til kildeteksten).\n"
+        "Et godt par er tidløst (ikke forældet om et år), selvstændigt (kræver ikke adgang til "
+        "kildeteksten), og spørgsmålet introducerer alle navne og enheder en fremmed har brug for "
+        "— det må ikke forudsætte kontekst fra andre spørgsmål.\n"
     ]
 
     if examples:
@@ -53,18 +57,21 @@ def _build_judge_prompt(pairs: list[tuple[str, str]]) -> str:
 
     pair_lines = [f"Par {i}:\nQ: {q}\nA: {a}" for i, (q, a) in enumerate(pairs, 1)]
     lines.append(
-        f"Vurder disse {len(pairs)} par og returner KUN en JSON-liste med true/false per par, "
-        f"f.eks. [true, false].\n\n" + "\n\n".join(pair_lines)
+        f"Vurder disse {len(pairs)} par. Returner KUN en JSON-liste med ét objekt per par:\n"
+        '[{"verdict": true, "reason": ""}, {"verdict": false, "reason": "kort begrundelse"}]\n\n'
+        + "\n\n".join(pair_lines)
     )
 
     return "\n".join(lines)
 
 
-async def _qa_judge(pairs: list[tuple[str, str]], client: GenerationClient) -> list[bool]:
+async def _qa_judge(
+    pairs: list[tuple[str, str]], client: GenerationClient
+) -> list[tuple[bool, str]]:
     if not pairs:
         return []
     prompt = _build_judge_prompt(pairs=pairs)
-    max_tokens = len(pairs) * 12
+    max_tokens = len(pairs) * 200
     raw = await client.generate(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0,
@@ -73,17 +80,28 @@ async def _qa_judge(pairs: list[tuple[str, str]], client: GenerationClient) -> l
     try:
         parsed = json.loads(raw)
         if isinstance(parsed, list) and len(parsed) == len(pairs):
-            return [bool(v) for v in parsed]
+            results = []
+            for item in parsed:
+                if isinstance(item, dict):
+                    results.append((bool(item.get("verdict", False)), str(item.get("reason", ""))))
+                elif isinstance(item, bool):
+                    results.append((item, ""))
+                else:
+                    results.append((False, ""))
+            return results
     except json.JSONDecodeError:
         pass
     warnings.warn(f"qa_judge: could not parse response {raw!r:.80}", stacklevel=2)
-    return [False] * len(pairs)
+    return [(False, "")] * len(pairs)
 
 
 _PROMPT = """\
 Find op til 3 gode, indbyrdes forskellige fakta fra teksten der egner sig til et vidensbaseret datasæt.
-Genér et direkte dansk spørgsmål per faktum - ingen indledende sætninger eller kontekst.
+Vælg fakta med reel vidensværdi: historiske begivenheder, videnskabelige opdagelser, kulturelle bidrag, geografiske og biologiske fakta, rekordsætning. Spring lister, sporlister, filmografier, karrierestationer, familieforhold, statistikker og trivialiteter over.
+Genér et selvstændigt dansk spørgsmål per faktum — inkluder den kontekst en fremmed har brug for (hvem er personen, hvad er det for et dyr, hvilken begivenhed). Hvert spørgsmål skal kunne forstås og besvares uden kendskab til de andre spørgsmål i listen. Ingen referencer til 'teksten', 'artiklen', 'filmen' eller 'programmet' — brug det konkrete navn.
+Brug kun fakta der tydeligt og konkret fremgår af teksten — spring et faktum over hvis teksten ikke giver et præcist svar, og vælg et andet. Svaret er en konkret oplysning fra teksten, aldrig en forklaring af hvad teksten ikke indeholder.
 Faktaet er svaret - det må ikke fremgå af spørgsmålet.
+Stil ét spørgsmål om ét faktum — aldrig to delspørgsmål med 'og'/'samt' i ét.
 Svaret skal direkte og præcist besvare spørgsmålet.
 Returner som JSON-liste eller null.
 
@@ -91,6 +109,19 @@ Returner som JSON-liste eller null.
 {{"question": "Hvem var statsminister da kvinder fik stemmeret i Danmark?", "answer": "Carl Theodor Zahle."}}]
 
 {text}"""
+
+_RETRY_PROMPT = """\
+Disse spørgsmål-svar par blev afvist. Ret fejlene og returner op til {n} forbedrede par som JSON-liste eller null.
+Hvert spørgsmål skal være selvstændigt — inkluder nødvendig kontekst (hvem er personen, hvilken begivenhed). Ingen referencer til 'teksten', 'kildeteksten', 'artiklen', 'filmen' eller 'programmet' — brug det konkrete navn. Stil ét spørgsmål om ét faktum. Hvert spørgsmål skal kunne forstås uden kendskab til de andre spørgsmål i listen.
+
+Kildetekst:
+{seed_text}
+
+Afviste par og grunde:
+{rejected_pairs}
+
+[{{"question": "Hvornår fik kvinder stemmeret i Danmark?", "answer": "Ved grundlovsændringen i 1915."}}, \
+{{"question": "Hvem var statsminister da kvinder fik stemmeret i Danmark?", "answer": "Carl Theodor Zahle."}}]"""
 
 
 class QAGenerator(BaseGenerator):
@@ -106,21 +137,27 @@ class QAGenerator(BaseGenerator):
         pairs = await self._generate_qa(text=text)
         self.stats["extracted"] += len(pairs)
 
-        candidates = []
-        for q, a in pairs:
-            if _SKIP_QUESTION_RE.search(q):
-                self.stats["skipped_regex"] += 1
-            elif not passes_filters(text=a, cfg=self.config.filters):
-                self.stats["skipped_filter"] += 1
-            else:
-                candidates.append((q, a))
+        candidates = self._filter_candidates(pairs=pairs)
 
         if not candidates:
             return []
 
         verdicts = await _qa_judge(pairs=candidates, client=self.client)
         records = []
-        for (q, a), verdict in zip(candidates, verdicts, strict=True):
+        rejected: list[tuple[str, str, str]] = []
+
+        for (q, a), (verdict, reason) in zip(candidates, verdicts, strict=True):
+            if self.on_verdict:
+                self.on_verdict(
+                    {
+                        "question": q,
+                        "answer": a,
+                        "verdict": verdict,
+                        "reason": reason,
+                        "stage": "first_pass",
+                        "seed_text": text[:500],
+                    }
+                )
             if verdict:
                 self.stats["accepted"] += 1
                 records.append(
@@ -130,7 +167,49 @@ class QAGenerator(BaseGenerator):
                 )
             else:
                 self.stats["skipped_judge"] += 1
+                rejected.append((q, a, reason))
+
+        if rejected:
+            retry_candidates = self._filter_candidates(
+                pairs=await self._retry_qa(seed_text=text[:4000], rejected=rejected)
+            )
+            retry_verdicts = await _qa_judge(pairs=retry_candidates, client=self.client)
+            for (q, a), (verdict, reason) in zip(retry_candidates, retry_verdicts, strict=True):
+                if self.on_verdict:
+                    self.on_verdict(
+                        {
+                            "question": q,
+                            "answer": a,
+                            "verdict": verdict,
+                            "reason": reason,
+                            "stage": "retry",
+                            "seed_text": text[:500],
+                        }
+                    )
+                if verdict:
+                    self.stats["retry_accepted"] += 1
+                    records.append(
+                        self._make_record(
+                            fields={"question": q, "answer": a},
+                            seed_config=seed_config,
+                            row=row,
+                        )
+                    )
+                else:
+                    self.stats["retry_skipped_judge"] += 1
+
         return records
+
+    def _filter_candidates(self, pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+        candidates = []
+        for q, a in pairs:
+            if _SKIP_QUESTION_RE.search(q):
+                self.stats["skipped_regex"] += 1
+            elif not passes_filters(text=a, cfg=self.config.filters):
+                self.stats["skipped_filter"] += 1
+            else:
+                candidates.append((q, a))
+        return candidates
 
     def stats_rows(self) -> list[tuple[str, int]]:
         s = self.stats
@@ -143,7 +222,9 @@ class QAGenerator(BaseGenerator):
             rows.append(("  – filters", s["skipped_filter"]))
         if s["skipped_judge"]:
             rows.append(("  – judge", s["skipped_judge"]))
-        rows.append(("Accepted", s["accepted"]))
+            rows.append(("  + retry accepted", s.get("retry_accepted", 0)))
+            rows.append(("  – retry judge", s.get("retry_skipped_judge", 0)))
+        rows.append(("Accepted", s["accepted"] + s.get("retry_accepted", 0)))
         return rows
 
     async def _generate_qa(self, text: str) -> list[tuple[str, str]]:
@@ -152,7 +233,29 @@ class QAGenerator(BaseGenerator):
             messages=[{"role": "user", "content": prompt}],
             temperature=0.9,
         )
+        return self._parse_pairs(raw=raw)
 
+    async def _retry_qa(
+        self, seed_text: str, rejected: list[tuple[str, str, str]]
+    ) -> list[tuple[str, str]]:
+        rejected_lines = "\n\n".join(
+            f"Q: {q}\nA: {a}\nGrund: {reason or '(ingen grund angivet)'}"
+            for q, a, reason in rejected
+        )
+        prompt = self._fmt(
+            _RETRY_PROMPT,
+            n=str(len(rejected)),
+            seed_text=seed_text,
+            rejected_pairs=rejected_lines,
+        )
+        raw = await self.client.generate(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.9,
+        )
+        return self._parse_pairs(raw=raw)
+
+    @staticmethod
+    def _parse_pairs(raw: str) -> list[tuple[str, str]]:
         try:
             value = json.loads(raw)
         except (json.JSONDecodeError, ValueError):
@@ -165,8 +268,8 @@ class QAGenerator(BaseGenerator):
         for item in value[:3]:
             if not isinstance(item, dict):
                 continue
-            question = (item.get("question") or "").strip()
-            answer = (item.get("answer") or "").strip()
+            question = str(item.get("question") or "").strip()
+            answer = str(item.get("answer") or "").strip()
             if question and answer:
                 pairs.append((question, answer))
         return pairs
