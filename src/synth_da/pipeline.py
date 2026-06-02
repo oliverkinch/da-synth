@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -26,13 +27,17 @@ _HF_REPOS: dict[Task, str] = {
 }
 
 
-def _make_generator(config: DatasetConfig, client: GenerationClient) -> BaseGenerator:
+def _make_generator(
+    config: DatasetConfig,
+    client: GenerationClient,
+    on_verdict: Callable[[dict[str, Any]], None] | None = None,
+) -> BaseGenerator:
     if config.task == Task.QA:
-        return QAGenerator(config=config, client=client)
+        return QAGenerator(config=config, client=client, on_verdict=on_verdict)
     if config.task == Task.SUMMARIZATION:
-        return SummarizationGenerator(config=config, client=client)
+        return SummarizationGenerator(config=config, client=client, on_verdict=on_verdict)
     if config.task == Task.TRANSLATION:
-        return TranslationGenerator(config=config, client=client)
+        return TranslationGenerator(config=config, client=client, on_verdict=on_verdict)
     raise ValueError(f"Unknown task: {config.task}")
 
 
@@ -45,9 +50,11 @@ async def run_pipeline(
     settings: Settings,
     concurrency: int = 20,
     seen_ids: set[str] | None = None,
+    on_sample: Callable[[dict[str, Any]], None] | None = None,
+    on_verdict: Callable[[dict[str, Any]], None] | None = None,
 ) -> list[dict[str, Any]]:
     client = GenerationClient(settings=settings)
-    generator = _make_generator(config=config, client=client)
+    generator = _make_generator(config=config, client=client, on_verdict=on_verdict)
 
     ds = load_dataset(
         config.seed_dataset,
@@ -112,9 +119,13 @@ async def run_pipeline(
                 for sample in r:
                     batch_had_success = True
                     samples.append(sample)
+                    if on_sample is not None:
+                        on_sample(sample)
                     progress.advance(task_id)
                     if len(samples) >= config.n_samples:
                         break
+                if len(samples) >= config.n_samples:
+                    break
 
             if batch_had_success:
                 consecutive_error_batches = 0

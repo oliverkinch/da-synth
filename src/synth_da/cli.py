@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
@@ -95,22 +96,53 @@ def generate(
                     except json.JSONDecodeError:
                         pass
 
-        samples = asyncio.run(
-            run_pipeline(
-                config=cfg,
-                config_path=cfg_path,
-                settings=settings,
-                concurrency=concurrency,
-                seen_ids=seen_ids,
-            )
+        out_file = output.open("a", encoding="utf-8") if output is not None else None
+        verdicts_path = output.with_stem(output.stem + "_verdicts") if output is not None else None
+        verdicts_file = (
+            verdicts_path.open("a", encoding="utf-8") if verdicts_path is not None else None
         )
+
+        def _write_sample(s: dict[str, Any], _f: Any = out_file) -> None:
+            if _f is not None:
+                _f.write(json.dumps(s, ensure_ascii=False) + "\n")
+                _f.flush()
+
+        def _write_verdict(v: dict[str, Any], _f: Any = verdicts_file) -> None:
+            if _f is not None:
+                _f.write(json.dumps(v, ensure_ascii=False) + "\n")
+                _f.flush()
+
+        on_sample: Callable[[dict[str, Any]], None] | None = (
+            _write_sample if out_file is not None else None
+        )
+        on_verdict: Callable[[dict[str, Any]], None] | None = (
+            _write_verdict if verdicts_file is not None else None
+        )
+
+        try:
+            samples = asyncio.run(
+                run_pipeline(
+                    config=cfg,
+                    config_path=cfg_path,
+                    settings=settings,
+                    concurrency=concurrency,
+                    seen_ids=seen_ids,
+                    on_sample=on_sample,
+                    on_verdict=on_verdict,
+                )
+            )
+        finally:
+            if out_file is not None:
+                out_file.close()
+            if verdicts_file is not None:
+                verdicts_file.close()
+
         console.print(f"[green]✓ Generated {len(samples)} samples[/green]")
 
         if output is not None:
-            with output.open("a", encoding="utf-8") as f:
-                for s in samples:
-                    f.write(json.dumps(s, ensure_ascii=False) + "\n")
-            console.print(f"[green]✓ Wrote {len(samples)} samples to {output}[/green]")
+            console.print(f"[green]✓ Appended {len(samples)} samples to {output}[/green]")
+            if verdicts_path is not None:
+                console.print(f"[green]✓ Verdicts written to {verdicts_path}[/green]")
         elif not dry_run:
             push_to_hub(records=samples, task=cfg.task, settings=settings)
             console.print(f"[green]✓ Pushed to Hub - subset: {cfg.task.value}[/green]")

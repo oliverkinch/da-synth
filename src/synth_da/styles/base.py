@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from abc import ABC, abstractmethod
 from collections import Counter
+from collections.abc import Callable
 from typing import Any
 
 from synth_da.client import GenerationClient
@@ -12,10 +13,16 @@ from synth_da.config import DatasetConfig
 
 
 class BaseGenerator(ABC):
-    def __init__(self, config: DatasetConfig, client: GenerationClient) -> None:
+    def __init__(
+        self,
+        config: DatasetConfig,
+        client: GenerationClient,
+        on_verdict: Callable[[dict[str, Any]], None] | None = None,
+    ) -> None:
         self.config = config
         self.client = client
         self.stats: Counter[str] = Counter()
+        self.on_verdict = on_verdict
 
     @abstractmethod
     async def generate_many(

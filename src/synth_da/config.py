@@ -68,7 +68,7 @@ class DatasetConfig(BaseModel):
         if self.min_seed_chars and len(text) < self.min_seed_chars:
             return None
         if self.max_seed_chars and len(text) > self.max_seed_chars:
-            return None
+            text = text[: self.max_seed_chars]
         return text
 
 
