@@ -188,6 +188,14 @@ Dataset type docs are maintained by humans and updated via the `/dataset_review`
 
 ---
 
+## Evaluation Strategy
+
+Fine-tuning quality is measured by running existing EuroEval benchmarks before and after fine-tuning and comparing scores. Current benchmarks used: Danske Talemåder, Danish Citizen Tests, MMLU-da, ARC-da.
+
+A Wikipedia-derived eval set is not pursued: all major LLMs are pretrained on Wikipedia, and our training data is also Wikipedia-derived, so a Wikipedia-based benchmark cannot separate pretraining knowledge from fine-tuning gains.
+
+---
+
 ## Persona Generation
 
 Personas are preprocessed from `nvidia/Nemotron-Personas-USA` (CC BY 4.0):
