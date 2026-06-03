@@ -36,7 +36,7 @@ class DatasetConfig(BaseModel):
     # Column mapping - merged columns via template
     text_template: str | None = None
 
-    n_samples: int = 1000
+    n_samples: int | None = None
     min_seed_chars: int | None = None
     max_seed_chars: int | None = None
     source_id_column: str | None = None

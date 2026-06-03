@@ -2,10 +2,10 @@ task: qa
 seed_dataset: oliverkinch/danish_wikipedia
 seed_subset: default
 seed_split: train
-text_template: "# {title}\n\n{text}"
+text_template: "{text}"
 source_id_column: url
-n_samples: 10000
-min_seed_chars: 1000
+min_seed_chars: 500
+max_seed_chars: 10000
 filters:
   min_assistant_tokens: 0
   max_repetition_ratio: 0.4

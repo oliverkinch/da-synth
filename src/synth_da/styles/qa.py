@@ -5,19 +5,12 @@ from __future__ import annotations
 import contextlib
 import functools
 import json
-import re
 import warnings
 from pathlib import Path
 from typing import Any
 
 from synth_da.client import GenerationClient
-from synth_da.filters import passes_filters
 from synth_da.styles.base import BaseGenerator
-
-_SKIP_QUESTION_RE = re.compile(
-    r"\bfødt\b|\bi dag\b|\bi teksten\b|\bi kildeteksten\b|\bifølge teksten\b|\bifølge kildeteksten\b",
-    re.IGNORECASE,
-)
 
 _EXAMPLES_PATH = (
     Path(__file__).parent.parent.parent.parent / "assets" / "qa_rejection_examples.jsonl"
@@ -96,32 +89,40 @@ async def _qa_judge(
 
 
 _PROMPT = """\
-Find op til 3 gode, indbyrdes forskellige fakta fra teksten der egner sig til et vidensbaseret datasæt.
-Vælg fakta med reel vidensværdi: historiske begivenheder, videnskabelige opdagelser, kulturelle bidrag, geografiske og biologiske fakta, rekordsætning. Spring lister, sporlister, filmografier, karrierestationer, familieforhold, statistikker og trivialiteter over.
-Genér et selvstændigt dansk spørgsmål per faktum — inkluder den kontekst en fremmed har brug for (hvem er personen, hvad er det for et dyr, hvilken begivenhed). Hvert spørgsmål skal kunne forstås og besvares uden kendskab til de andre spørgsmål i listen. Ingen referencer til 'teksten', 'artiklen', 'filmen' eller 'programmet' — brug det konkrete navn.
-Brug kun fakta der tydeligt og konkret fremgår af teksten — spring et faktum over hvis teksten ikke giver et præcist svar, og vælg et andet. Svaret er en konkret oplysning fra teksten, aldrig en forklaring af hvad teksten ikke indeholder.
+Find op til 3 gode, indbyrdes forskellige fakta fra kildeteksten der egner sig til et vidensbaseret datasæt.
+Vælg de bedste og mest informative fakta du kan finde — historiske begivenheder, opdagelser, kulturelle bidrag, tekniske principper, geografisk og biologisk viden. Generér altid op til 3 par; returner kun null hvis kildeteksten er indholdsfattig og ikke giver præcise, verificerbare fakta.
+Genér et selvstændigt dansk spørgsmål per faktum — inkluder den kontekst en fremmed har brug for (hvem er personen, hvad er det for et dyr, hvilken begivenhed). Hvert spørgsmål skal kunne forstås og besvares uden kendskab til de andre spørgsmål i listen. Ingen referencer til 'kildeteksten', 'filmen' eller 'programmet' — brug det konkrete navn.
+Brug kun fakta der tydeligt og konkret fremgår af kildeteksten — spring et faktum over hvis kildeteksten ikke giver et præcist svar, og vælg et andet. Svaret er en konkret oplysning fra kildeteksten, aldrig en forklaring af hvad kildeteksten ikke indeholder.
 Faktaet er svaret - det må ikke fremgå af spørgsmålet.
 Stil ét spørgsmål om ét faktum — aldrig to delspørgsmål med 'og'/'samt' i ét.
 Svaret skal direkte og præcist besvare spørgsmålet.
 Returner som JSON-liste eller null.
 
+<example-output>
 [{{"question": "Hvornår fik kvinder stemmeret i Danmark?", "answer": "Ved grundlovsændringen i 1915."}}, \
 {{"question": "Hvem var statsminister da kvinder fik stemmeret i Danmark?", "answer": "Carl Theodor Zahle."}}]
+</example-output>
 
-{text}"""
+<kildetekst>
+{text}
+</kildetekst>"""
 
 _RETRY_PROMPT = """\
 Disse spørgsmål-svar par blev afvist. Ret fejlene og returner op til {n} forbedrede par som JSON-liste eller null.
-Hvert spørgsmål skal være selvstændigt — inkluder nødvendig kontekst (hvem er personen, hvilken begivenhed). Ingen referencer til 'teksten', 'kildeteksten', 'artiklen', 'filmen' eller 'programmet' — brug det konkrete navn. Stil ét spørgsmål om ét faktum. Hvert spørgsmål skal kunne forstås uden kendskab til de andre spørgsmål i listen.
+Hvert spørgsmål skal være selvstændigt — inkluder nødvendig kontekst (hvem er personen, hvilken begivenhed). Ingen referencer til 'kildeteksten', 'filmen' eller 'programmet' — brug det konkrete navn. Stil ét spørgsmål om ét faktum. Hvert spørgsmål skal kunne forstås uden kendskab til de andre spørgsmål i listen.
 
-Kildetekst:
+<kildetekst>
 {seed_text}
+</kildetekst>
 
-Afviste par og grunde:
+<rejected>
 {rejected_pairs}
+</rejected>
 
+<example-output>
 [{{"question": "Hvornår fik kvinder stemmeret i Danmark?", "answer": "Ved grundlovsændringen i 1915."}}, \
-{{"question": "Hvem var statsminister da kvinder fik stemmeret i Danmark?", "answer": "Carl Theodor Zahle."}}]"""
+{{"question": "Hvem var statsminister da kvinder fik stemmeret i Danmark?", "answer": "Carl Theodor Zahle."}}]
+</example-output>"""
 
 
 class QAGenerator(BaseGenerator):
@@ -134,12 +135,25 @@ class QAGenerator(BaseGenerator):
         if text is None:
             return []
 
-        pairs = await self._generate_qa(text=text)
-        self.stats["extracted"] += len(pairs)
+        source_id = str(row[self.config.source_id_column]) if self.config.source_id_column else None
 
-        candidates = self._filter_candidates(pairs=pairs)
+        candidates = await self._generate_qa(text=text)
+        self.stats["extracted"] += len(candidates)
 
         if not candidates:
+            self.stats["skipped_empty"] += 1
+            if self.on_verdict:
+                self.on_verdict(
+                    {
+                        "question": None,
+                        "answer": None,
+                        "verdict": False,
+                        "reason": "no_extraction",
+                        "stage": "extraction",
+                        "seed_text": text,
+                        "source_id": source_id,
+                    }
+                )
             return []
 
         verdicts = await _qa_judge(pairs=candidates, client=self.client)
@@ -155,7 +169,8 @@ class QAGenerator(BaseGenerator):
                         "verdict": verdict,
                         "reason": reason,
                         "stage": "first_pass",
-                        "seed_text": text[:500],
+                        "seed_text": text,
+                        "source_id": source_id,
                     }
                 )
             if verdict:
@@ -170,9 +185,7 @@ class QAGenerator(BaseGenerator):
                 rejected.append((q, a, reason))
 
         if rejected:
-            retry_candidates = self._filter_candidates(
-                pairs=await self._retry_qa(seed_text=text[:4000], rejected=rejected)
-            )
+            retry_candidates = await self._retry_qa(seed_text=text, rejected=rejected)
             retry_verdicts = await _qa_judge(pairs=retry_candidates, client=self.client)
             for (q, a), (verdict, reason) in zip(retry_candidates, retry_verdicts, strict=True):
                 if self.on_verdict:
@@ -183,7 +196,8 @@ class QAGenerator(BaseGenerator):
                             "verdict": verdict,
                             "reason": reason,
                             "stage": "retry",
-                            "seed_text": text[:500],
+                            "seed_text": text,
+                            "source_id": source_id,
                         }
                     )
                 if verdict:
@@ -200,26 +214,13 @@ class QAGenerator(BaseGenerator):
 
         return records
 
-    def _filter_candidates(self, pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
-        candidates = []
-        for q, a in pairs:
-            if _SKIP_QUESTION_RE.search(q):
-                self.stats["skipped_regex"] += 1
-            elif not passes_filters(text=a, cfg=self.config.filters):
-                self.stats["skipped_filter"] += 1
-            else:
-                candidates.append((q, a))
-        return candidates
-
     def stats_rows(self) -> list[tuple[str, int]]:
         s = self.stats
         if not s:
             return []
         rows: list[tuple[str, int]] = [("Extracted", s["extracted"])]
-        if s["skipped_regex"]:
-            rows.append(("  – regex", s["skipped_regex"]))
-        if s["skipped_filter"]:
-            rows.append(("  – filters", s["skipped_filter"]))
+        if s.get("skipped_empty"):
+            rows.append(("  – empty extraction", s["skipped_empty"]))
         if s["skipped_judge"]:
             rows.append(("  – judge", s["skipped_judge"]))
             rows.append(("  + retry accepted", s.get("retry_accepted", 0)))
@@ -228,7 +229,7 @@ class QAGenerator(BaseGenerator):
         return rows
 
     async def _generate_qa(self, text: str) -> list[tuple[str, str]]:
-        prompt = self._fmt(_PROMPT, text=text[:4000])
+        prompt = self._fmt(_PROMPT, text=text)
         raw = await self.client.generate(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.9,

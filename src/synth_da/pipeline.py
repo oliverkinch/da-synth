@@ -93,7 +93,7 @@ async def run_pipeline(
 
         row_idx = 0
         consecutive_error_batches = 0
-        while len(samples) < config.n_samples and row_idx < len(rows):
+        while (config.n_samples is None or len(samples) < config.n_samples) and row_idx < len(rows):
             batch_rows = [rows[(row_idx + i) % len(rows)] for i in range(concurrency)]
             row_idx += concurrency
 
@@ -122,9 +122,9 @@ async def run_pipeline(
                     if on_sample is not None:
                         on_sample(sample)
                     progress.advance(task_id)
-                    if len(samples) >= config.n_samples:
+                    if config.n_samples is not None and len(samples) >= config.n_samples:
                         break
-                if len(samples) >= config.n_samples:
+                if config.n_samples is not None and len(samples) >= config.n_samples:
                     break
 
             if batch_had_success:
@@ -146,7 +146,7 @@ async def run_pipeline(
             table.add_row(label, str(value))
         _console.print(table)
 
-    return samples[: config.n_samples]
+    return samples if config.n_samples is None else samples[: config.n_samples]
 
 
 def push_to_hub(
