@@ -47,7 +47,7 @@ Create the `debug/qa/` directory if it does not exist: `mkdir -p debug/qa`.
 
 Run:
 ```
-synth-da generate --config <config> --n-samples <n-samples> --output <samples_path> --verbose
+synth-da generate --config <config> --n-samples <n-samples> --output <samples_path>
 ```
 
 Wait for it to complete. The verdicts file (`<samples_stem>_verdicts.jsonl`) is written automatically.

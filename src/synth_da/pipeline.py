@@ -93,7 +93,7 @@ async def run_pipeline(
 
         row_idx = 0
         consecutive_error_batches = 0
-        while len(samples) < config.n_samples and row_idx < len(rows) * 10:
+        while len(samples) < config.n_samples and row_idx < len(rows):
             batch_rows = [rows[(row_idx + i) % len(rows)] for i in range(concurrency)]
             row_idx += concurrency
 
