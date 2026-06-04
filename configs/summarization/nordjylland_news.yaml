@@ -2,7 +2,7 @@ task: summarization
 seed_dataset: alexandrainst/nordjylland-news-summarization
 seed_split: train
 text_column: text
-n_samples: 2000
+n_samples: null
 truncate_seed_chars: 10000
 filters:
   min_assistant_tokens: 30

@@ -3,7 +3,7 @@ seed_dataset: oliverkinch/eur-lex-sum
 seed_subset: da
 seed_split: train
 text_column: da_document
-n_samples: 1000
+n_samples: null
 truncate_seed_chars: 10000
 filters:
   min_assistant_tokens: 50
