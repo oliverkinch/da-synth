@@ -3,7 +3,7 @@ seed_dataset: alexandrainst/nordjylland-news-summarization
 seed_split: train
 text_column: text
 n_samples: 2000
-max_seed_chars: 4000
+truncate_seed_chars: 10000
 filters:
   min_assistant_tokens: 30
   max_repetition_ratio: 0.35

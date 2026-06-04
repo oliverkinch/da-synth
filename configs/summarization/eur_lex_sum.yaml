@@ -4,7 +4,7 @@ seed_subset: da
 seed_split: train
 text_column: da_document
 n_samples: 1000
-max_seed_chars: 4000
+truncate_seed_chars: 10000
 filters:
   min_assistant_tokens: 50
   max_repetition_ratio: 0.3

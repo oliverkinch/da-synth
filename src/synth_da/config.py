@@ -38,7 +38,7 @@ class DatasetConfig(BaseModel):
 
     n_samples: int | None = None
     min_seed_chars: int | None = None
-    max_seed_chars: int | None = None
+    truncate_seed_chars: int | None = None
     source_id_column: str | None = None
 
     filters: FilterConfig = Field(default_factory=FilterConfig)
@@ -67,8 +67,8 @@ class DatasetConfig(BaseModel):
         text = strip_birth_parenthetical(text=text)
         if self.min_seed_chars and len(text) < self.min_seed_chars:
             return None
-        if self.max_seed_chars and len(text) > self.max_seed_chars:
-            text = text[: self.max_seed_chars]
+        if self.truncate_seed_chars and len(text) > self.truncate_seed_chars:
+            text = text[: self.truncate_seed_chars]
         return text
 
 
