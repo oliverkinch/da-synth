@@ -39,6 +39,9 @@ class DatasetConfig(BaseModel):
     n_samples: int | None = None
     min_seed_chars: int | None = None
     truncate_seed_chars: int | None = None
+    min_document_chars: int | None = None
+    max_document_chars: int | None = None
+    summary_column: str | None = None
     source_id_column: str | None = None
 
     filters: FilterConfig = Field(default_factory=FilterConfig)

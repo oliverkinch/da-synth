@@ -7,13 +7,12 @@ description: Iterative summarization pipeline improvement loop. Generates ~20 sa
 
 Build a high-quality Danish summarization dataset. Every accepted sample will end up in the dataset, so the primary question at every step is: **are the accepted document–summary pairs actually good?** Reviewing rejections is secondary — it matters only insofar as the judge may be throwing away good pairs or letting bad ones through.
 
-A good pair satisfies all of:
+The pipeline now uses **real source documents** — only the summary is synthesised. A good pair satisfies all of:
 - **Faithfulness**: the summary introduces no information absent from the document
 - **Coverage**: the summary captures the main point(s) of the document, not just the opening sentences
 - **Compression**: the summary is meaningfully shorter than the document (rough target: under 40% of document length)
 - **Coherence**: the summary is self-contained — no "ovenstående tekst" references, no pronouns without clear antecedents
-- **Danish fluency**: both document and summary are written in natural, idiomatic Danish
-- **Document naturalness**: the document reads as originally-written Danish, not as translated or calqued prose
+- **Danish fluency**: the summary is written in natural, idiomatic Danish (the document may contain some English words or noise — that is fine and expected for real-world source texts)
 
 **Prefer prompt simplification over accumulated rules.** If you find yourself adding a fifth special-case constraint to a prompt, step back and ask whether a cleaner rewrite of the core instruction handles all cases. A prompt that grows one rule per iteration becomes fragile and hard to reason about.
 
@@ -76,8 +75,7 @@ Match the lever to the direction of error:
 - Add a rejection examples file `assets/summarization_judge_rejection_examples.jsonl` (format: `{"document": "...", "summary": "...", "reason": "..."}` with reason in Danish) and load it in `_build_judge_prompt` analogously to `qa.py`
 
 **Generation quality problems (bad pairs before judging):**
-- Edit `_DOCUMENT_PROMPT` if documents are calqued or unnatural
-- Edit `_SUMMARY_PROMPT` if summaries are unfaithful, biased toward opening sentences, or over-long
+- Edit `_SUMMARY_PROMPT` if summaries are unfaithful, biased toward opening sentences, over-long, or the original-summary anchor is causing paraphrase rather than genuine re-summarisation
 - Edit `_RETRY_SUMMARY_PROMPT` if retries are not recovering well
 
 **Filter-level problems:**
@@ -111,7 +109,38 @@ Rules for updating:
 
 ## Notes
 - Never truncate your reading of any verdict file — read every line.
-- When proposing rejection examples, write them in the format: `{"document": "...", "summary": "...", "reason": "..."}` with reason in Danish.
+- When proposing rejection examples, write them in the format: `{"document": "...", "summary": "...", "reason": "..."}` with reason in Danish. The `document` field is kept for reference but only the `summary` and `reason` are shown to the judge.
 - Be critical of accepted samples too — the goal is quality, not quantity.
 - A high retry recovery rate (most first-pass rejections pass on retry) is a good sign. A low rate means fix the generation prompt, not the judge.
 - When a pattern only appears in one config, explicitly note that before proposing a fix — the fix must survive across all configs.
+
+## Pipeline knowledge
+
+### Architecture (as of 2026-06-08)
+- Real source documents are used directly — no synthetic document generation
+- Only the summary is synthesised, conditioned on the real document + original summary as anchor
+- Documents above `max_document_chars` are skipped (not truncated); nordjylland has no limit, EUR-LEX uses 800 000 chars
+- Judge evaluates **summary quality only** — document noise (occasional English words, layout artefacts) is expected and acceptable
+- Retry always attempted on judge rejection; skip only if reason is empty. Judge prompt now requires non-empty reason on rejection.
+- Binary path is `.venv/bin/synth-da` (not `synth-da` in PATH)
+
+### What's already fixed
+- **EUR-LEX markdown formatting**: `da_summary` anchor caused model to produce `**bold headers**`. Fixed by adding "Skriv i løbende prosatekst — ingen overskrifter, ingen markdown-formatering" to both `_SUMMARY_PROMPT` and `_RETRY_SUMMARY_PROMPT`.
+- **EUR-LEX external knowledge injection**: Model added future amendments, case law, precise dates not in document. Fixed by adding "Brug kun oplysninger der fremgår af det medfølgende dokument — tilføj ikke viden om EU-lovgivning, fremtidige ændringer, domme eller andre oplysninger fra din træning" to `_SUMMARY_PROMPT`.
+- **Empty-reason retry guard**: Judge sometimes returned `{"verdict": false, "reason": ""}`, silently blocking retry. Fixed by adding "Ved afvisning er reason PÅKRÆVET — skriv altid en konkret begrundelse på 5–20 ord." to judge prompt output instruction.
+- **Foreign-morphology rejection example**: Added example to `assets/summarization_judge_rejection_examples.jsonl` for "stands for" / "-ische" type errors (English/German morphology in otherwise Danish text).
+
+### Known failure modes
+- **Paraphrase of anchor**: if the model too closely copies the original summary anchor rather than re-summarising the document, the output adds little value. Watch for summaries nearly identical to the `summary_column` field.
+- **Sports match hallucination (nordjylland)**: Live sports articles sometimes trigger faithfulness errors — model adds standings conclusions not stated in truncated documents. Both passes correctly reject these; this is a hard generation problem.
+- **Date/number precision (EUR-LEX)**: Model sometimes computes or infers specific dates from vague time expressions in documents (e.g. "18 months after entry into force" → "januar 2015"). Judge correctly catches this. Retries reliably fix it.
+
+### Dataset notes
+- **nordjylland**: news articles, typically 800–2 500 chars. Original summaries are short (often 1–3 sentences). Documents are often truncated in the seed dataset — model must not hallucinate details from the missing portion.
+- **EUR-LEX**: EU legal documents, 2 000–800 000 chars (after the skip filter). Original summaries can be multi-paragraph. Generated summaries should capture the legal purpose and key obligations. Paragraphs breaks in accepted summaries are fine for complex documents.
+
+### Judge calibration notes
+- Judge language sensitivity is well-calibrated: correctly catches "ermöglichte" (German), "causede" / "joinede" / "plight" (English), "rådmændene" (plural vs. singular), "Denpositive" (missing space), and hallucinated proper nouns.
+- No false rejections observed across iters 3–4. Judge is not over-strict.
+- Rejection examples file (`assets/summarization_judge_rejection_examples.jsonl`) has 3 entries: Norwegian word ("likestilling"), non-existent word ("Loiven"), English/German morphology in Danish ("stands for", "-ische").
+- EUR-LEX retry recovery is routinely 100%; nordjylland ~80–90%. High retry recovery confirms judge calibration is good and generation is the bottleneck, not the judge.
